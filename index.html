@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Recompo · Plan del día</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15170f;--panel:#20241a;--panel-2:#282d20;--line:#3a4030;
+    --bone:#e9e6d8;--muted:#9a9d87;--olive:#a8bd5a;--olive-deep:#6f8236;
+    --brass:#d0a94e;--brass-deep:#a07d2c;--alert:#d1503f;--alert-deep:#7d2a20;
+    --carb:#e0a24e;--veg:#7bbf6a;--prot:#d0a94e;
+    --display:'Oswald',Impact,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace;
+    --body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--bg);color:var(--bone);font-family:var(--body);}
+  body{max-width:480px;margin:0 auto;padding:12px 13px 84px;min-height:100vh;
+    background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.012) 0 2px,transparent 2px 22px);}
+  .stencil{font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;}
+
+  /* header */
+  .top{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:13px;padding:12px 14px;}
+  .top-r1{display:flex;justify-content:space-between;align-items:center;}
+  .rank{display:flex;align-items:center;gap:8px;}
+  .rank svg{width:26px;height:26px;flex:none;}
+  .rank .nm{font-family:var(--display);font-weight:700;font-size:20px;color:var(--brass);text-transform:uppercase;line-height:1;}
+  .rank .dy{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;}
+  .pts{text-align:right;}
+  .pts .n{font-family:var(--mono);font-weight:700;font-size:22px;line-height:1;}
+  .pts .l{font-family:var(--display);font-size:9px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
+  .top-r2{display:flex;gap:8px;margin-top:11px;}
+  .mini{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 9px;text-align:center;}
+  .mini .mn{font-family:var(--mono);font-weight:700;font-size:15px;}
+  .mini .ml{font-family:var(--display);font-size:8px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-top:1px;}
+  .mini .mn.ok{color:var(--olive);}.mini .mn.low{color:var(--brass);}.mini .mn.over{color:var(--alert);}
+
+  /* prelaunch */
+  .prelaunch{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--brass-deep);border-radius:12px;padding:20px 16px;margin-top:14px;text-align:center;}
+  .prelaunch .pt{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.05em;text-transform:uppercase;color:var(--brass);}
+  .prelaunch .pd{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
+  .prelaunch .pc{font-family:var(--mono);font-weight:700;font-size:44px;color:var(--olive);margin-top:12px;line-height:1;}
+  .prelaunch .pcl{font-family:var(--display);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+
+  /* section headings */
+  .tabtitle{display:flex;align-items:baseline;gap:8px;margin:18px 2px 12px;}
+  .tabtitle .ico{font-size:18px;}
+  .tabtitle h2{font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.1em;text-transform:uppercase;}
+  .tabtitle .hint{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+  /* meal card */
+  .meal{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;}
+  .meal.saved{border-color:var(--olive-deep);}
+  .meal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;}
+  .meal-head .mh-l{display:flex;align-items:center;gap:9px;}
+  .meal-head .time{font-family:var(--mono);font-size:11px;color:var(--muted);}
+  .meal-head .nm{font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.05em;text-transform:uppercase;}
+  .meal-head .sub{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .meal-head .sub b{color:var(--olive);}
+  .meal-head .chk{color:var(--olive);font-weight:700;font-size:13px;font-family:var(--mono);}
+  .meal-body{padding:0 12px 12px;}
+  .grp-lbl{font-family:var(--display);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:8px 2px 6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{border:1px solid var(--line);background:var(--panel-2);color:var(--bone);border-radius:9px;padding:9px 11px;font-size:13px;cursor:pointer;display:flex;flex-direction:column;gap:1px;min-width:0;transition:all .12s;}
+  .chip:active{transform:scale(.97);}
+  .chip .cm{font-family:var(--mono);font-size:10px;color:var(--muted);}
+  .chip.on{background:rgba(168,189,90,.14);border-color:var(--olive);}
+  .chip.on .cm{color:var(--olive);}
+  .meal-actions{display:flex;gap:8px;margin-top:12px;}
+  .save-btn{flex:1;border:none;border-radius:10px;padding:12px;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.1em;text-transform:uppercase;background:var(--olive);color:#12140d;cursor:pointer;}
+  .save-btn:active{transform:scale(.99);}
+  .save-btn.edit{background:transparent;border:1px solid var(--line);color:var(--muted);}
+
+  /* entreno / walk */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:12px;}
+  .card.done{border-color:var(--olive-deep);}
+  .card .ct{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase;}
+  .card .cd{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .exlist{list-style:none;margin:12px 0;}
+  .exlist li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .exlist li:last-child{border-bottom:none;}
+  .exlist li .w{font-family:var(--mono);color:var(--olive);font-size:13px;}
+  .bigbtn{width:100%;border:none;border-radius:11px;padding:15px;font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;background:var(--olive);color:#12140d;cursor:pointer;margin-top:6px;}
+  .bigbtn:active{transform:scale(.99);}
+  .bigbtn.off{background:var(--panel-2);color:var(--olive);border:1px solid var(--olive-deep);}
+  .rest{text-align:center;padding:20px;color:var(--muted);}
+  .rest .re{font-size:30px;}.rest .rt{font-family:var(--display);letter-spacing:.1em;text-transform:uppercase;margin-top:6px;font-size:14px;}
+
+  /* dia / scoring */
+  .macro{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:12px;}
+  .macro-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .macro-row:last-child{margin-bottom:0;}
+  .macro-row .ml2{font-family:var(--display);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  .macro-row .mv{font-family:var(--mono);font-weight:700;font-size:16px;}
+  .bar{height:7px;background:var(--bg);border:1px solid var(--line);border-radius:5px;overflow:hidden;margin-top:6px;}
+  .bar > i{display:block;height:100%;border-radius:4px;}
+  .score-box{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .score-box .lbl{font-family:var(--display);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .score-box .bd{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px;}
+  .score-box .big{font-family:var(--mono);font-weight:700;font-size:32px;line-height:.9;}
+  .score-box .big.pos{color:var(--olive);}.score-box .big.neg{color:var(--alert);}
+  .tog{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;cursor:pointer;margin-bottom:7px;font-size:13px;}
+  .tog .b{width:18px;height:18px;border:2px solid var(--line);border-radius:5px;flex:none;}
+  .tog.on .b{background:var(--alert);border-color:var(--alert);}
+  .tog.on{border-color:var(--alert-deep);background:rgba(209,80,63,.08);}
+  .tog .tp{margin-left:auto;font-family:var(--mono);color:var(--muted);}
+  .tog.pgood.on .b{background:var(--olive);border-color:var(--olive);}
+  .tog.pgood.on{border-color:var(--olive-deep);background:rgba(168,189,90,.08);}
+  .closebtn{width:100%;border:none;border-radius:11px;padding:15px;font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.12em;text-transform:uppercase;background:var(--olive);color:#12140d;cursor:pointer;margin-top:6px;}
+  .closebtn:disabled{background:var(--panel-2);color:var(--muted);}
+  .ghost{width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:11px;font-family:var(--display);font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;}
+
+  /* tab bar */
+  .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:flex;background:var(--panel);border-top:1px solid var(--line);z-index:40;}
+  .tabbar button{flex:1;background:none;border:none;color:var(--muted);padding:9px 4px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .tabbar button .ti{font-size:19px;}
+  .tabbar button .tl{font-family:var(--display);font-size:9px;letter-spacing:.08em;text-transform:uppercase;}
+  .tabbar button.active{color:var(--olive);}
+  .tabbar button.active .ti{filter:drop-shadow(0 0 6px rgba(168,189,90,.4));}
+  .view{display:none;}.view.active{display:block;}
+
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(20px);background:var(--brass);color:#171712;font-family:var(--display);font-weight:600;letter-spacing:.05em;padding:11px 18px;border-radius:10px;opacity:0;transition:all .35s;pointer-events:none;z-index:60;text-transform:uppercase;font-size:12px;text-align:center;max-width:88%;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#22261a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Recompo">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+</head>
+<body>
+
+<div class="top" id="top">
+  <div class="top-r1">
+    <div class="rank">
+      <svg viewBox="0 0 40 40" fill="none">
+        <path d="M20 6 L34 16 L28 16 L20 10 L12 16 L6 16 Z" fill="var(--brass)"/>
+        <path d="M20 16 L34 26 L28 26 L20 20 L12 26 L6 26 Z" fill="var(--brass)" opacity=".8"/>
+        <path d="M20 26 L34 36 L28 36 L20 30 L12 36 L6 36 Z" fill="var(--brass)" opacity=".55"/>
+      </svg>
+      <div><div class="nm" id="rankName">Recluta</div><div class="dy" id="campDay">—</div></div>
+    </div>
+    <div class="pts"><div class="n" id="totalPts">0</div><div class="l">puntos</div></div>
+  </div>
+  <div class="top-r2">
+    <div class="mini"><div class="mn" id="miniKcal">0</div><div class="ml">kcal / 2050</div></div>
+    <div class="mini"><div class="mn" id="miniProt">0</div><div class="ml">prot / 175</div></div>
+    <div class="mini"><div class="mn" id="miniStreak">x1.0</div><div class="ml">racha</div></div>
+  </div>
+</div>
+
+<div class="prelaunch" id="prelaunch" style="display:none">
+  <div class="pt">Campaña en espera</div>
+  <div class="pd">Arranca el <b>lunes 27 de julio</b>. Descansá el finde, Recluta — el lunes se desbloquea todo.</div>
+  <div class="pc" id="preCount">—</div>
+  <div class="pcl">días para el arranque</div>
+</div>
+
+<div id="app" style="display:none">
+
+<!-- COMIDA -->
+<div class="view active" id="v-comida">
+  <div class="tabtitle"><span class="ico">🍽</span><h2>Comida</h2><span class="hint">guardá cada parte</span></div>
+  <div id="meals"></div>
+</div>
+
+<!-- ENTRENO -->
+<div class="view" id="v-entreno">
+  <div class="tabtitle"><span class="ico">🏋️</span><h2>Entreno</h2><span class="hint" id="entHint"></span></div>
+  <div id="entreno"></div>
+</div>
+
+<!-- CAMINAR -->
+<div class="view" id="v-caminar">
+  <div class="tabtitle"><span class="ico">🚶</span><h2>Caminar</h2><span class="hint">1 h · Lun a Sáb</span></div>
+  <div id="caminar"></div>
+</div>
+
+<!-- DIA -->
+<div class="view" id="v-dia">
+  <div class="tabtitle"><span class="ico">📊</span><h2>Balance del día</h2></div>
+  <div class="macro">
+    <div class="macro-row">
+      <div><div class="ml2">Calorías ingeridas</div><div class="bar"><i id="barKcal" style="width:0%;background:var(--olive)"></i></div></div>
+      <div class="mv" id="diaKcal">0</div>
+    </div>
+    <div class="macro-row">
+      <div><div class="ml2">Proteína</div><div class="bar"><i id="barProt" style="width:0%;background:var(--brass)"></i></div></div>
+      <div class="mv" id="diaProt">0 g</div>
+    </div>
+    <div class="macro-row"><div class="ml2">Quemado estimado</div><div class="mv" id="diaBurn">0</div></div>
+    <div class="macro-row"><div class="ml2">Déficit</div><div class="mv" id="diaDef" style="color:var(--olive)">0</div></div>
+  </div>
+
+  <div class="tabtitle" style="margin-top:6px"><span class="ico">🎖</span><h2 style="font-size:14px">Puntaje de hoy</h2></div>
+  <div class="score-box">
+    <div><div class="lbl">Puntos del día</div><div class="bd" id="scBreak">+0 · x1.0</div></div>
+    <div class="big pos" id="scBig">0</div>
+  </div>
+  <div class="tog pgood" id="togPeso"><span class="b"></span><span>Pesada + reporte antes de las 10</span><span class="tp">+5</span></div>
+  <div class="tog" id="togRest"><span class="b"></span><span>Restaurante / descontrol sin compensar</span><span class="tp">−20</span></div>
+  <div class="tog" id="togSnack"><span class="b"></span><span>Picoteo nocturno no planificado</span><span class="tp">−10</span></div>
+  <button class="closebtn" id="closeBtn">Cerrar el día</button>
+  <button class="ghost" id="reopenBtn" style="display:none">Reabrir el día</button>
+  <button class="ghost" id="resetBtn" style="margin-top:16px;color:var(--alert);border-color:var(--alert-deep)">Reiniciar campaña</button>
+</div>
+
+</div><!-- /app -->
+
+<div class="tabbar" id="tabbar">
+  <button data-v="comida" class="active"><span class="ti">🍽</span><span class="tl">Comida</span></button>
+  <button data-v="entreno"><span class="ti">🏋️</span><span class="tl">Entreno</span></button>
+  <button data-v="caminar"><span class="ti">🚶</span><span class="tl">Caminar</span></button>
+  <button data-v="dia"><span class="ti">📊</span><span class="tl">Día</span></button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- storage ----------
+const KEY='moka:plan:v1';
+const store={
+  async get(){try{if(window.storage){const r=await window.storage.get(KEY);return r?JSON.parse(r.value):null;}}catch(e){}try{const v=localStorage.getItem(KEY);return v?JSON.parse(v):null;}catch(e){return null;}},
+  async set(s){const j=JSON.stringify(s);try{if(window.storage)await window.storage.set(KEY,j);}catch(e){}try{localStorage.setItem(KEY,j);}catch(e){}}
+};
+
+// ---------- config ----------
+const START='2026-07-27', END='2026-08-12';
+const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185;
+const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
+
+// meal catalogs — grupos: pick=elegir 1 sugerido, pero se pueden marcar varios
+const MEALS=[
+  {id:'desayuno',nm:'Desayuno',time:'09:30',groups:[
+    {lbl:'Plan',items:[{id:'d_huevos',n:'3 huevos duros',k:216,p:19},{id:'d_naranja',n:'1 naranja',k:62,p:1},{id:'d_cafe',n:'Café negro (100ml, s/azúcar)',k:2,p:0}]}
+  ]},
+  {id:'almuerzo',nm:'Almuerzo',time:'14:00',groups:[
+    {lbl:'Plan',items:[{id:'a_pollo',n:'200g pollo',k:330,p:62},{id:'a_arroz',n:'200g arroz cocido',k:260,p:5},{id:'a_brocoli',n:'200g brócoli',k:68,p:6},{id:'a_aceite',n:'Aceite oliva 10g',k:88,p:0}]}
+  ]},
+  {id:'merienda',nm:'Merienda',time:'17:00',groups:[
+    {lbl:'Plan',items:[{id:'m_huevos',n:'2 huevos duros',k:144,p:13},{id:'m_pomelo1',n:'Pomelo',k:70,p:1},{id:'m_pomelo2',n:'Pomelo',k:70,p:1}]}
+  ]},
+  {id:'cena',nm:'Cena',time:'20:00',groups:[
+    {lbl:'Plan',items:[{id:'c_pollo',n:'200g pollo',k:330,p:62},{id:'c_papa',n:'100g papa',k:86,p:2},{id:'c_espinaca',n:'200g espinaca',k:46,p:6},{id:'c_huevos',n:'2 huevos duros',k:144,p:13},{id:'c_aceite',n:'Aceite oliva 10g',k:88,p:0},{id:'c_naranja',n:'1 naranja',k:62,p:1}]}
+  ]},
+  {id:'extras',nm:'Extras',time:'',groups:[
+    {lbl:'Sumás si te saliste del plan',items:[{id:'x_cafe',n:'Café negro extra',k:2,p:0},{id:'x_naranja',n:'1 naranja',k:62,p:1},{id:'x_pomelo',n:'1 pomelo',k:70,p:1},{id:'x_yogur',n:'Yogur proteico',k:100,p:15},{id:'x_huevo',n:'1 huevo duro',k:72,p:6},{id:'x_pollo',n:'100g pollo',k:165,p:31},{id:'x_arroz',n:'100g arroz',k:130,p:3},{id:'x_frutos',n:'Frutos secos 30g',k:180,p:6}]}
+  ]}
+];
+const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
+
+const GYM={
+  1:{t:'Tren inferior',ex:[['Sentadilla','40 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','a elección']]},
+  2:{t:'Tren superior',ex:[['Press de banca','—'],['Jalón al pecho','—'],['Remo en polea','—'],['Press de hombros','—']]},
+  4:{t:'Tren inferior',ex:[['Sentadilla','40 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','a elección']]},
+  5:{t:'Tren superior',ex:[['Press de banca','—'],['Jalón al pecho','—'],['Remo en polea','—'],['Press de hombros','—']]}
+};
+
+// ---------- helpers ----------
+function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoToDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function daysBetween(a,b){return Math.round((isoToDate(b)-isoToDate(a))/86400000);}
+function campaignDay(){return daysBetween(START,todayKey())+1;}
+function preLaunch(){return todayKey()<START;}
+function dow(){return new Date().getDay();}
+function isTrainingDay(){return[1,2,4,5].includes(dow());}
+function isWalkDay(){return[1,2,3,4,5,6].includes(dow());}
+function mult(streak){return Math.min(1.5,1+streak*0.1);}
+function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
+
+function freshDay(){
+  const meals={}; MEALS.forEach(m=>meals[m.id]={items:{},saved:false});
+  return {date:todayKey(),meals,entreno:{done:false},caminata:{done:false,extra:0},flags:{peso:false,rest:false,snack:false},closed:false};
+}
+function defaults(){return{total:0,streak:0,log:[],day:freshDay()};}
+let state=null, view='comida';
+
+function ensureToday(){if(!state.day||state.day.date!==todayKey())state.day=freshDay();}
+
+// ---------- macros ----------
+function mealMacros(mealId){
+  const m=state.day.meals[mealId];let k=0,p=0;
+  for(const id in m.items){if(m.items[id]&&ITEM[id]){k+=ITEM[id].k;p+=ITEM[id].p;}}
+  return{k,p};
+}
+function dayMacros(){ // sólo comidas guardadas
+  let k=0,p=0;
+  MEALS.forEach(m=>{if(state.day.meals[m.id].saved){const x=mealMacros(m.id);k+=x.k;p+=x.p;}});
+  return{k,p};
+}
+function burn(){
+  let b=2015+200; // basal + NEAT base
+  if(state.day.caminata.done)b+=250;
+  b+=250*(state.day.caminata.extra||0);
+  if(state.day.entreno.done)b+=450;
+  return b;
+}
+
+// ---------- scoring ----------
+function scoreDay(){
+  const mac=dayMacros(); let pos=0, autoNeg=0;
+  const d=state.day, td=isTrainingDay(), wd=isWalkDay();
+  // positivos
+  if(d.flags.peso)pos+=5;
+  if(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos)pos+=10;
+  if(d.meals.almuerzo.saved&&mealMacros('almuerzo').p>=50)pos+=5;
+  if(d.meals.merienda.saved&&mealMacros('merienda').p>=12)pos+=5;
+  if(d.meals.cena.saved&&mealMacros('cena').p>=50)pos+=5;
+  if(td&&d.entreno.done)pos+=25;
+  if(wd&&d.caminata.done)pos+=15;
+  pos+=5*(d.caminata.extra||0);
+  const def=burn()-mac.k;
+  if(def>0&&mac.p>=PROT_MIN)pos+=20;
+  if(mac.p>=PROT_OPT)pos+=5;
+  // negativos automáticos (por ausencia)
+  if(!d.meals.desayuno.saved||!d.meals.desayuno.items.d_huevos)autoNeg+=15; // salteó/incompleto
+  if(td&&!d.entreno.done)autoNeg+=30;
+  if(wd&&!d.caminata.done)autoNeg+=15;
+  if(mac.p<PROT_MIN)autoNeg+=15;
+  // negativos manuales
+  let manNeg=0;
+  if(d.flags.rest)manNeg+=20;
+  if(d.flags.snack)manNeg+=10;
+  const neg=autoNeg+manNeg;
+  const clean=neg===0;
+  const m=clean?mult(state.streak):1;
+  const score=Math.round(pos*m)-neg;
+  return{pos,neg,clean,m,score,def,mac};
+}
+
+// ---------- render ----------
+function elx(h){const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild;}
+
+function renderMeals(){
+  const c=document.getElementById('meals');c.innerHTML='';
+  MEALS.forEach(m=>{
+    const st=state.day.meals[m.id];const mac=mealMacros(m.id);
+    const card=document.createElement('div');
+    card.className='meal'+(st.saved?' saved':'');
+    const head=elx(`<div class="meal-head">
+      <div class="mh-l"><span class="time">${m.time}</span>
+        <div><div class="nm">${m.nm}</div>
+        <div class="sub">${mac.k} kcal · <b>${mac.p}g prot</b></div></div></div>
+      <div class="chk">${st.saved?'✓ guardado':'▾'}</div></div>`);
+    card.appendChild(head);
+    const body=document.createElement('div');body.className='meal-body';
+    m.groups.forEach(g=>{
+      body.appendChild(elx(`<div class="grp-lbl">${g.lbl}</div>`));
+      const chips=document.createElement('div');chips.className='chips';
+      g.items.forEach(it=>{
+        const on=!!st.items[it.id];
+        const chip=elx(`<button class="chip ${on?'on':''}"><span>${it.n}</span><span class="cm">${it.k} kcal · ${it.p}p</span></button>`);
+        if(!st.saved)chip.onclick=()=>{state.day.meals[m.id].items[it.id]=!state.day.meals[m.id].items[it.id];save();renderMeals();refreshTop();};
+        else chip.style.opacity=.55;
+        chips.appendChild(chip);
+      });
+      body.appendChild(chips);
+    });
+    const act=document.createElement('div');act.className='meal-actions';
+    if(!st.saved){
+      const b=elx(`<button class="save-btn">Guardar ${m.nm.toLowerCase()}</button>`);
+      b.onclick=()=>{state.day.meals[m.id].saved=true;save();renderMeals();refreshTop();toast(`${m.nm} guardado · ${mealMacros(m.id).p}g prot`);};
+      act.appendChild(b);
+    }else{
+      const e=elx(`<button class="save-btn edit">Editar</button>`);
+      e.onclick=()=>{if(state.day.closed)return;state.day.meals[m.id].saved=false;save();renderMeals();refreshTop();};
+      act.appendChild(e);
+    }
+    body.appendChild(act);
+    // collapse when saved
+    body.style.display=st.saved?'none':'block';
+    head.onclick=()=>{body.style.display=body.style.display==='none'?'block':'none';};
+    card.appendChild(body);
+    c.appendChild(card);
+  });
+}
+
+function renderEntreno(){
+  const c=document.getElementById('entreno');c.innerHTML='';
+  const g=GYM[dow()];
+  document.getElementById('entHint').textContent=g?'1 hora · 4 ejercicios':'';
+  if(!g){
+    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">${dow()===0?'😴':'🚶'}</div><div class="rt">${dow()===0?'Descanso total':'Hoy sin fierro'}</div><div class="cd" style="margin-top:8px">${dow()===0?'Domingo: ni fierro ni caminata. Recuperá.':'Miércoles/Sábado: sólo la caminata. Andá a la pestaña Caminar.'}</div></div></div>`));
+    return;
+  }
+  const done=state.day.entreno.done;
+  const card=document.createElement('div');card.className='card'+(done?' done':'');
+  card.appendChild(elx(`<div class="ct">${g.t}</div><div class="cd">Doble progresión: completás todas las reps con buena forma → +2,5 kg la próxima. Anotá tus reps.</div>`));
+  const ul=document.createElement('ul');ul.className='exlist';
+  g.ex.forEach((e,i)=>ul.appendChild(elx(`<li><span>${i+1}. ${e[0]}</span><span class="w">${e[1]}</span></li>`)));
+  card.appendChild(ul);
+  const b=elx(`<button class="bigbtn ${done?'off':''}">${done?'✓ Entreno registrado':'Registrar entreno completo (+25)'}</button>`);
+  b.onclick=()=>{if(state.day.closed)return;state.day.entreno.done=!state.day.entreno.done;save();renderEntreno();refreshTop();if(state.day.entreno.done)toast('Entreno registrado · +25');};
+  card.appendChild(b);
+  c.appendChild(card);
+}
+
+function renderCaminar(){
+  const c=document.getElementById('caminar');c.innerHTML='';
+  if(dow()===0){c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">😴</div><div class="rt">Domingo · descanso</div></div></div>`));return;}
+  const done=state.day.caminata.done;
+  const card=document.createElement('div');card.className='card'+(done?' done':'');
+  card.appendChild(elx(`<div class="ct">Caminata con la perrita</div><div class="cd">1 hora. Es el motor del déficit ahora que el fierro bajó a 4 días. No es opcional.</div>`));
+  const b=elx(`<button class="bigbtn ${done?'off':''}" style="margin-top:14px">${done?'✓ Caminata registrada':'Registrar caminata 1 h (+15)'}</button>`);
+  b.onclick=()=>{if(state.day.closed)return;state.day.caminata.done=!state.day.caminata.done;save();renderCaminar();refreshTop();if(state.day.caminata.done)toast('Caminata registrada · +15');};
+  card.appendChild(b);
+  c.appendChild(card);
+  // caminata extra
+  const ex=state.day.caminata.extra||0;
+  const extra=document.createElement('div');extra.className='card';
+  extra.appendChild(elx(`<div class="ct">Caminata extra</div><div class="cd">Cada hora de más suma al déficit y da bonus. +250 kcal · +5 pts por hora.</div>`));
+  const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;margin-top:14px;';
+  const minus=elx(`<button class="bigbtn off" style="margin-top:0;width:56px;flex:none;">−</button>`);
+  const count=elx(`<div style="flex:1;text-align:center;font-family:var(--mono);font-weight:700;font-size:22px;color:var(--olive);">${ex} h</div>`);
+  const plus=elx(`<button class="bigbtn" style="margin-top:0;flex:1;">+1 h extra</button>`);
+  minus.onclick=()=>{if(state.day.closed)return;if((state.day.caminata.extra||0)>0){state.day.caminata.extra--;save();renderCaminar();refreshTop();}};
+  plus.onclick=()=>{if(state.day.closed)return;state.day.caminata.extra=(state.day.caminata.extra||0)+1;save();renderCaminar();refreshTop();toast('+1 h de caminata · +5 pts');};
+  row.appendChild(minus);row.appendChild(count);row.appendChild(plus);
+  extra.appendChild(row);
+  c.appendChild(extra);
+}
+
+function renderDia(){
+  const s=scoreDay();
+  document.getElementById('diaKcal').textContent=s.mac.k+' / '+KCAL_TARGET;
+  document.getElementById('barKcal').style.width=Math.min(100,s.mac.k/KCAL_TARGET*100)+'%';
+  document.getElementById('diaProt').textContent=s.mac.p+' g';
+  const pp=Math.min(100,s.mac.p/PROT_OPT*100);
+  const barP=document.getElementById('barProt');barP.style.width=pp+'%';
+  barP.style.background=s.mac.p>=PROT_MIN?'var(--olive)':'var(--brass)';
+  document.getElementById('diaBurn').textContent=burn();
+  const df=document.getElementById('diaDef');df.textContent=(s.def>=0?'+':'')+s.def+' kcal';
+  df.style.color=s.def>0?'var(--olive)':'var(--alert)';
+  document.getElementById('scBig').textContent=(s.score>=0?'+':'')+s.score;
+  document.getElementById('scBig').className='big '+(s.score>=0?'pos':'neg');
+  document.getElementById('scBreak').textContent=`+${s.pos} · x${s.m.toFixed(1)}${s.clean?'':' (racha rota)'} · −${s.neg}`;
+  document.getElementById('togPeso').classList.toggle('on',state.day.flags.peso);
+  document.getElementById('togRest').classList.toggle('on',state.day.flags.rest);
+  document.getElementById('togSnack').classList.toggle('on',state.day.flags.snack);
+  document.getElementById('closeBtn').style.display=state.day.closed?'none':'block';
+  document.getElementById('reopenBtn').style.display=state.day.closed?'block':'none';
+}
+
+function refreshTop(){
+  const r=RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6];
+  document.getElementById('rankName').textContent=r.n;
+  document.getElementById('totalPts').textContent=state.total;
+  document.getElementById('campDay').textContent=preLaunch()?'en espera':('Día '+campaignDay()+' · faltan '+Math.max(0,daysBetween(todayKey(),END))+'d p/ 94kg');
+  const mac=dayMacros();
+  const mk=document.getElementById('miniKcal');mk.textContent=mac.k;
+  mk.className='mn '+(mac.k>KCAL_TARGET+150?'over':mac.k>=KCAL_TARGET-300?'ok':'low');
+  const mp=document.getElementById('miniProt');mp.textContent=mac.p+'g';
+  mp.className='mn '+(mac.p>=PROT_MIN?'ok':'low');
+  document.getElementById('miniStreak').textContent='x'+mult(state.streak).toFixed(1);
+  if(view==='dia')renderDia();
+}
+
+// ---------- actions ----------
+async function save(){await store.set(state);}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
+
+function switchView(v){
+  view=v;
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.getElementById('v-'+v).classList.add('active');
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+  if(v==='dia')renderDia();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
+
+['peso','rest','snack'].forEach(f=>{
+  document.getElementById('tog'+f.charAt(0).toUpperCase()+f.slice(1)).onclick=()=>{
+    if(state.day.closed)return;state.day.flags[f]=!state.day.flags[f];save();renderDia();refreshTop();
+  };
+});
+
+document.getElementById('closeBtn').onclick=async()=>{
+  const s=scoreDay();const prev=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
+  state.total+=s.score;state.streak=s.clean?state.streak+1:0;state.day.closed=true;
+  state.log.push({date:state.day.date,score:s.score});
+  await save();renderDia();refreshTop();
+  const now=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
+  if(now!==prev)toast('¡ASCENSO! Ahora sos '+now);
+  else if(s.clean&&state.streak>1)toast('Día limpio · racha '+state.streak+' · x'+mult(state.streak).toFixed(1));
+  else toast('Día cerrado: '+(s.score>=0?'+':'')+s.score+' pts');
+};
+document.getElementById('reopenBtn').onclick=async()=>{
+  const s=scoreDay();state.total-=s.score;state.streak=s.clean?Math.max(0,state.streak-1):state.streak;
+  state.day.closed=false;state.log=state.log.filter(e=>e.date!==state.day.date);
+  await save();renderDia();refreshTop();renderMeals();renderEntreno();renderCaminar();
+};
+document.getElementById('resetBtn').onclick=async()=>{
+  if(!confirm('¿Reiniciar toda la campaña? Se borra todo.'))return;
+  state=defaults();await save();boot();toast('Campaña reiniciada');
+};
+
+// ---------- boot ----------
+function boot(){
+  ensureToday();
+  if(preLaunch()){
+    document.getElementById('prelaunch').style.display='block';
+    document.getElementById('app').style.display='none';
+    document.getElementById('tabbar').style.display='none';
+    document.getElementById('preCount').textContent=daysBetween(todayKey(),START);
+    refreshTop();return;
+  }
+  document.getElementById('prelaunch').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('tabbar').style.display='flex';
+  renderMeals();renderEntreno();renderCaminar();renderDia();refreshTop();switchView(view);
+}
+(async()=>{state=await store.get()||defaults();state=Object.assign(defaults(),state);boot();})();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
