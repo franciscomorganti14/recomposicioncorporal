@@ -1,10 +1,11 @@
 // Recompo PWA service worker — cachea la app para que funcione sin internet.
 // Subí la versión (CACHE) cada vez que cambies el HTML para forzar actualización.
-const CACHE = 'recompo-v1';
+const CACHE = 'recompo-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './xlsx.mini.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

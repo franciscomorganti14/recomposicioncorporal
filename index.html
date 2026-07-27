@@ -210,7 +210,8 @@
   <div class="tog" id="togSnack"><span class="b"></span><span>Picoteo nocturno no planificado</span><span class="tp">−10</span></div>
   <button class="closebtn" id="closeBtn">Cerrar el día</button>
   <button class="ghost" id="reopenBtn" style="display:none">Reabrir el día</button>
-  <button class="ghost" id="resetBtn" style="margin-top:16px;color:var(--alert);border-color:var(--alert-deep)">Reiniciar campaña</button>
+  <button class="ghost" id="exportBtn" style="margin-top:16px">📊 Exportar todo a Excel</button>
+  <button class="ghost" id="resetBtn" style="margin-top:10px;color:var(--alert);border-color:var(--alert-deep)">Reiniciar campaña</button>
 </div>
 
 </div><!-- /app -->
@@ -224,6 +225,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="xlsx.mini.min.js"></script>
 <script>
 // ---------- storage ----------
 const KEY='moka:plan:v1';
@@ -334,6 +336,29 @@ function scoreDay(){
   const m=clean?mult(state.streak):1;
   const score=Math.round(pos*m)-neg;
   return{pos,neg,clean,m,score,def,mac};
+}
+
+// ---------- snapshot (para historial exportable) ----------
+function mealSummary(id){
+  const m=state.day.meals[id];const names=[];
+  for(const k in m.items){if(m.items[k]&&ITEM[k])names.push(ITEM[k].n);}
+  const mm=mealMacros(id);
+  return{saved:m.saved,kcal:Math.round(mm.k),prot:Math.round(mm.p),items:names.join(', ')};
+}
+function buildSnapshot(s){
+  const d=state.day,wd=dow();
+  const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const plan=(GYM[wd]?GYM[wd].t:'Descanso / caminata');
+  return{
+    date:d.date,dia:dias[wd],entreno_plan:plan,
+    entreno:!!d.entreno.done,caminata:!!d.caminata.done,caminata_extra:d.caminata.extra||0,
+    ing_kcal:Math.round(s.mac.k),ing_prot:Math.round(s.mac.p),
+    quemado:burn(),deficit:Math.round(s.def),
+    desayuno:mealSummary('desayuno'),almuerzo:mealSummary('almuerzo'),
+    merienda:mealSummary('merienda'),cena:mealSummary('cena'),extras:mealSummary('extras'),
+    rest:!!d.flags.rest,snack:!!d.flags.snack,peso:!!d.flags.peso,
+    score:s.score,clean:s.clean
+  };
 }
 
 // ---------- render ----------
@@ -486,7 +511,7 @@ document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(
 document.getElementById('closeBtn').onclick=async()=>{
   const s=scoreDay();const prev=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
   state.total+=s.score;state.streak=s.clean?state.streak+1:0;state.day.closed=true;
-  state.log.push({date:state.day.date,score:s.score});
+  state.log=state.log.filter(e=>e.date!==state.day.date);state.log.push(buildSnapshot(s));
   await save();renderDia();refreshTop();
   const now=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
   if(now!==prev)toast('¡ASCENSO! Ahora sos '+now);
@@ -502,6 +527,50 @@ document.getElementById('resetBtn').onclick=async()=>{
   if(!confirm('¿Reiniciar toda la campaña? Se borra todo.'))return;
   state=defaults();await save();boot();toast('Campaña reiniciada');
 };
+
+// ---------- exportar a Excel ----------
+function exportXLSX(){
+  if(typeof XLSX==='undefined'){toast('Librería cargando, probá de nuevo');return;}
+  const mealsList=[['desayuno','Desayuno'],['almuerzo','Almuerzo'],['merienda','Merienda'],['cena','Cena'],['extras','Extras']];
+  const wb=XLSX.utils.book_new();
+  const sn=v=>v===true?'Sí':(v===false?'No':'—');
+
+  // Hoja 1: Resumen
+  const rank=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
+  const resumen=[
+    ['RECOMPO — MOKA'],['Exportado', new Date().toLocaleString('es-AR')],[],
+    ['Puntos totales', state.total],['Racha actual (días)', state.streak],
+    ['Rango', rank],['Días registrados', state.log.length]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), 'Resumen');
+
+  // Hoja 2: Historial diario
+  const rows=[['Fecha','Día','Entreno plan','Entrenó','Caminata','Cam. extra (h)','Ingerido kcal','Proteína g','Quemado kcal','Déficit kcal','Restaurante','Picoteo','Pesada','Puntos','Día limpio']];
+  state.log.forEach(e=>{
+    rows.push([e.date,e.dia||'—',e.entreno_plan||'—',sn(e.entreno),sn(e.caminata),e.caminata_extra??'—',
+      e.ing_kcal??'—',e.ing_prot??'—',e.quemado??'—',e.deficit??'—',
+      e.rest?'Sí':'',e.snack?'Sí':'',e.peso?'Sí':'',e.score??'—',sn(e.clean)]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Historial diario');
+
+  // Hoja 3: Comidas detalle
+  const crows=[['Fecha','Comida','Guardada','kcal','Proteína g','Items']];
+  state.log.forEach(e=>{mealsList.forEach(([k,lbl])=>{const m=e[k];
+    if(m&&typeof m==='object')crows.push([e.date,lbl,m.saved?'Sí':'No',m.kcal??'—',m.prot??'—',m.items||'']);});});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(crows), 'Comidas detalle');
+
+  // Hoja 4: Día en curso
+  const s=scoreDay(),snap=buildSnapshot(s);
+  const hoy=[['Día en curso',snap.date],['Ingerido kcal',snap.ing_kcal],['Proteína g',snap.ing_prot],
+    ['Quemado kcal',snap.quemado],['Déficit kcal',snap.deficit],['Entrenó',sn(snap.entreno)],
+    ['Caminata',sn(snap.caminata)],[],['Comida','kcal','Proteína g','Items']];
+  mealsList.forEach(([k,lbl])=>{const m=snap[k];hoy.push([lbl,m.kcal,m.prot,m.items]);});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hoy), 'Hoy');
+
+  XLSX.writeFile(wb, 'recompo-moka-'+snap.date+'.xlsx');
+  toast('Excel exportado ✔');
+}
+document.getElementById('exportBtn').onclick=exportXLSX;
 
 // ---------- boot ----------
 function boot(){
