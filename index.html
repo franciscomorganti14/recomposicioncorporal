@@ -179,6 +179,28 @@
   .wlist .wd{flex:1;font-family:var(--mono);color:var(--muted);font-size:12px;}
   .wlist .wk{font-family:var(--mono);font-weight:700;color:var(--bone);width:76px;text-align:right;}
   .wlist .wdl{font-family:var(--mono);font-size:12px;width:56px;text-align:right;}
+
+  /* comida libre (calculador) */
+  .freefood{margin-top:6px;}
+  .fflist{margin-bottom:10px;}
+  .ffitem{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .ffitem:last-child{border-bottom:none;}
+  .ffitem .ffnm{flex:1;min-width:0;font-size:14px;color:var(--bone);}
+  .ffitem .ffkc{font-family:var(--mono);font-size:12px;color:var(--olive);white-space:nowrap;}
+  .ffitem .ffx{flex:none;width:26px;height:26px;border:1px solid var(--alert-deep);background:transparent;color:var(--alert);border-radius:7px;font-size:12px;cursor:pointer;}
+  .ffadd{background:var(--bg);border:1px dashed var(--olive-deep);border-radius:10px;padding:12px;margin-top:4px;}
+  .ffsel{width:100%;background:var(--panel);border:1px solid var(--olive-deep);color:var(--bone);font-family:var(--body,inherit);font-size:14px;padding:10px;border-radius:8px;margin-bottom:8px;}
+  .ffsel:focus{outline:none;border-color:var(--olive);}
+  .ffrow{display:flex;align-items:center;gap:8px;}
+  .ffrow2{display:flex;gap:8px;margin-top:8px;}
+  .ffi{flex:1;min-width:0;background:var(--panel);border:1px solid var(--olive-deep);color:var(--bone);font-family:var(--mono);font-size:16px;padding:9px 10px;border-radius:8px;-moz-appearance:textfield;}
+  .ffi::-webkit-outer-spin-button,.ffi::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .ffi:focus{outline:none;border-color:var(--olive);}
+  .ffi::placeholder{color:var(--muted);opacity:.6;}
+  .ffu{font-family:var(--mono);color:var(--muted);font-size:14px;flex:none;}
+  .ffman{margin-top:8px;display:flex;flex-direction:column;gap:8px;}
+  .ffprev{font-family:var(--mono);font-weight:700;font-size:17px;color:var(--olive);text-align:center;margin:12px 0;}
+  .ffbtn{width:100%;border:none;border-radius:9px;padding:12px;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;background:var(--olive);color:#12140d;cursor:pointer;}
 </style>
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -325,6 +347,34 @@ const SPORTS=[
   {id:'pingpong',n:'Ping pong 1 h',kcal:400}
 ];
 
+// kcal y proteína por cada 100 g
+const FOODS=[
+  {n:'Pollo (pechuga)',k:165,p:31},{n:'Carne vacuna magra',k:250,p:26},{n:'Carne picada',k:240,p:26},
+  {n:'Cerdo',k:242,p:27},{n:'Pescado (merluza)',k:90,p:18},{n:'Salmón',k:208,p:22},{n:'Atún al natural',k:116,p:26},
+  {n:'Huevo',k:155,p:13},{n:'Milanesa de carne',k:280,p:18},{n:'Milanesa de pollo',k:250,p:20},
+  {n:'Jamón cocido',k:145,p:18},{n:'Salame',k:378,p:22},{n:'Mortadela',k:311,p:16},{n:'Panceta',k:540,p:12},
+  {n:'Arroz cocido',k:130,p:3},{n:'Fideos cocidos',k:158,p:6},{n:'Ñoquis',k:130,p:4},{n:'Papa',k:86,p:2},
+  {n:'Batata',k:86,p:2},{n:'Polenta cocida',k:85,p:2},{n:'Choclo',k:96,p:3},{n:'Pan',k:265,p:9},
+  {n:'Pan lactal',k:250,p:8},{n:'Avena',k:380,p:13},{n:'Galletitas de agua',k:450,p:9},
+  {n:'Leche entera',k:62,p:3},{n:'Leche descremada',k:42,p:3},{n:'Yogur natural',k:60,p:4},{n:'Yogur bebible',k:70,p:3},
+  {n:'Queso cremoso',k:300,p:18},{n:'Queso port salut',k:330,p:22},{n:'Queso rallado',k:400,p:32},{n:'Ricota',k:170,p:11},
+  {n:'Dulce de leche',k:315,p:6},{n:'Manteca',k:717,p:1},{n:'Crema de leche',k:340,p:2},
+  {n:'Banana',k:89,p:1},{n:'Manzana',k:52,p:0},{n:'Naranja',k:47,p:1},{n:'Pera',k:57,p:0},{n:'Uva',k:69,p:1},
+  {n:'Frutilla',k:32,p:1},{n:'Pomelo',k:42,p:1},{n:'Palta',k:160,p:2},
+  {n:'Brócoli',k:34,p:3},{n:'Espinaca',k:23,p:3},{n:'Tomate',k:18,p:1},{n:'Lechuga',k:15,p:1},
+  {n:'Zanahoria',k:41,p:1},{n:'Cebolla',k:40,p:1},{n:'Zapallo',k:26,p:1},
+  {n:'Lentejas cocidas',k:116,p:9},{n:'Garbanzos cocidos',k:164,p:9},{n:'Porotos cocidos',k:127,p:9},
+  {n:'Chocolate',k:545,p:8},{n:'Alfajor',k:400,p:5},{n:'Galletitas dulces',k:470,p:6},
+  {n:'Papas fritas (paquete)',k:536,p:6},{n:'Papas fritas (fritas)',k:312,p:4},{n:'Pochoclos dulces',k:400,p:5},
+  {n:'Helado',k:207,p:4},{n:'Torta',k:350,p:5},{n:'Medialuna',k:400,p:8},{n:'Factura',k:400,p:7},
+  {n:'Maní',k:567,p:26},{n:'Almendras',k:579,p:21},{n:'Nueces',k:654,p:15},
+  {n:'Mermelada',k:250,p:0},{n:'Miel',k:304,p:0},{n:'Azúcar',k:400,p:0},
+  {n:'Pizza',k:266,p:11},{n:'Hamburguesa (medallón)',k:250,p:15},{n:'Empanada (unidad ~100g)',k:280,p:9},
+  {n:'Tarta',k:200,p:7},{n:'Sushi',k:150,p:6},
+  {n:'Aceite',k:884,p:0},{n:'Mayonesa',k:680,p:1},{n:'Ketchup',k:110,p:1},{n:'Mostaza',k:66,p:4},
+  {n:'Gaseosa',k:42,p:0},{n:'Jugo',k:45,p:0},{n:'Cerveza',k:43,p:0},{n:'Vino',k:83,p:0}
+];
+
 const QUOTES=[
   {q:'No son las cosas las que nos perturban, sino nuestras opiniones sobre las cosas.',a:'Epicteto'},
   {q:'Tienes poder sobre tu mente, no sobre los eventos externos. Date cuenta de esto y hallarás la fuerza.',a:'Marco Aurelio'},
@@ -368,7 +418,7 @@ const MEALS=[
   ]},
   {id:'extras',nm:'Extras',time:'',groups:[
     {lbl:'Café — tocá + / − las que tomaste',items:[{id:'x_cafe',n:'Café negro',k:2,p:0,type:'counter'}]},
-    {lbl:'Sumás si te saliste del plan',items:[{id:'x_naranja',n:'1 naranja',k:62,p:1},{id:'x_pomelo',n:'1 pomelo',k:70,p:1},{id:'x_yogur',n:'Yogur proteico',k:100,p:15},{id:'x_huevo',n:'1 huevo duro',k:72,p:6},{id:'x_pollo',n:'100g pollo',k:165,p:31},{id:'x_whey',n:'1 scoop whey',k:120,p:24},{id:'x_arroz',n:'100g arroz',k:130,p:3},{id:'x_papa',n:'100g papa',k:86,p:2},{id:'x_batata',n:'100g batata',k:90,p:2},{id:'x_ketchup',n:'100g ketchup',k:110,p:1},{id:'x_frutos',n:'Frutos secos 30g',k:180,p:6}]}
+    {lbl:'Sumás si te saliste del plan',items:[{id:'x_naranja',n:'1 naranja',k:62,p:1},{id:'x_pomelo',n:'1 pomelo',k:70,p:1},{id:'x_yogur',n:'Yogur proteico',k:100,p:15},{id:'x_huevo',n:'1 huevo duro',k:72,p:6},{id:'x_pollo',n:'100g pollo',k:165,p:31},{id:'x_whey',n:'1 scoop whey',k:120,p:24},{id:'x_arroz',n:'100g arroz',k:130,p:3},{id:'x_papa',n:'100g papa',k:86,p:2},{id:'x_batata',n:'100g batata',k:90,p:2},{id:'x_ketchup',n:'100g ketchup',k:110,p:1},{id:'x_frutos',n:'Frutos secos 30g',k:180,p:6},{id:'x_pochoclos',n:'Balde grande pochoclos dulces',k:1000,p:8}]}
   ]}
 ];
 const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
@@ -393,7 +443,7 @@ function mult(streak){return Math.min(1.5,1+streak*0.1);}
 function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
 
 function freshDay(){
-  const meals={}; MEALS.forEach(m=>meals[m.id]={items:{},saved:false});
+  const meals={}; MEALS.forEach(m=>meals[m.id]={items:{},saved:false,free:[]});
   return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},flags:{peso:false,rest:false,snack:false},closed:false};
 }
 function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{}};}
@@ -406,6 +456,7 @@ function normalize(){
     delete state.day.caminata.extra;
   }
   if(state.day&&!state.day.deportes)state.day.deportes={};
+  if(state.day&&state.day.meals){for(const k in state.day.meals){if(!Array.isArray(state.day.meals[k].free))state.day.meals[k].free=[];}}
   if(!state.weights)state.weights={};
 }
 
@@ -413,6 +464,7 @@ function normalize(){
 function mealMacros(mealId){
   const m=state.day.meals[mealId];let k=0,p=0;
   for(const id in m.items){const q=m.items[id];if(q&&ITEM[id]){const n=(typeof q==='number')?q:1;k+=ITEM[id].k*n;p+=ITEM[id].p*n;}}
+  if(m.free)m.free.forEach(f=>{k+=(+f.k||0);p+=(+f.p||0);});
   return{k,p};
 }
 function dayMacros(){ // sólo comidas guardadas
@@ -465,6 +517,7 @@ function scoreDay(){
 function mealSummary(id){
   const m=state.day.meals[id];const names=[];
   for(const k in m.items){const q=m.items[k];if(q&&ITEM[k])names.push((typeof q==='number'&&q>1)?(ITEM[k].n+' x'+q):ITEM[k].n);}
+  if(m.free)m.free.forEach(f=>names.push(f.n+(f.g?(' '+f.g+'g'):'')));
   const mm=mealMacros(id);
   return{saved:m.saved,kcal:Math.round(mm.k),prot:Math.round(mm.p),items:names.join(', ')};
 }
@@ -487,6 +540,66 @@ function buildSnapshot(s){
 
 // ---------- render ----------
 function elx(h){const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild;}
+
+function buildFreeFood(st){
+  const wrap=document.createElement('div');wrap.className='freefood';
+  if(st.free&&st.free.length){
+    const list=document.createElement('div');list.className='fflist';
+    st.free.forEach((f,i)=>{
+      const li=elx(`<div class="ffitem"><span class="ffnm">${f.n}${f.g?(' · '+f.g+'g'):''}</span><span class="ffkc">${Math.round(f.k)} kcal · ${Math.round(f.p)||0}p</span></div>`);
+      if(!st.saved){const x=elx(`<button class="ffx">✕</button>`);x.onclick=()=>{st.free.splice(i,1);save();renderMeals();refreshTop();};li.appendChild(x);}
+      list.appendChild(li);
+    });
+    wrap.appendChild(list);
+  }
+  if(st.saved)return wrap;
+  const adder=document.createElement('div');adder.className='ffadd';
+  adder.appendChild(elx(`<div class="grp-lbl">Agregar comida libre</div>`));
+  const sel=document.createElement('select');sel.className='ffsel';
+  sel.appendChild(elx(`<option value="">— elegí alimento —</option>`));
+  FOODS.forEach((f,i)=>sel.appendChild(elx(`<option value="${i}">${f.n} (${f.k}/100g)</option>`)));
+  sel.appendChild(elx(`<option value="manual">✎ Otro (cargar a mano)</option>`));
+  adder.appendChild(sel);
+  const gRow=document.createElement('div');gRow.className='ffrow';
+  const gInput=elx(`<input class="ffi" type="number" inputmode="decimal" min="1" max="4000" placeholder="gramos">`);
+  gRow.appendChild(gInput);gRow.appendChild(elx(`<span class="ffu">g</span>`));
+  adder.appendChild(gRow);
+  const man=document.createElement('div');man.className='ffman';man.style.display='none';
+  const nInput=elx(`<input class="ffi" type="text" placeholder="nombre del alimento">`);
+  const kInput=elx(`<input class="ffi" type="number" inputmode="decimal" min="0" placeholder="kcal totales">`);
+  const pInput=elx(`<input class="ffi" type="number" inputmode="decimal" min="0" placeholder="proteína g (opc.)">`);
+  man.appendChild(nInput);
+  const man2=document.createElement('div');man2.className='ffrow2';man2.appendChild(kInput);man2.appendChild(pInput);
+  man.appendChild(man2);
+  adder.appendChild(man);
+  const prev=elx(`<div class="ffprev">≈ 0 kcal</div>`);adder.appendChild(prev);
+  function calc(){
+    const v=sel.value;
+    if(v==='manual'){man.style.display='';const k=parseFloat(kInput.value)||0,p=parseFloat(pInput.value)||0;prev.textContent='≈ '+Math.round(k)+' kcal'+(p?(' · '+p+'g prot'):'');}
+    else if(v===''){man.style.display='none';prev.textContent='≈ 0 kcal';}
+    else{man.style.display='none';const f=FOODS[+v],g=parseFloat(gInput.value)||0;prev.textContent='≈ '+Math.round(f.k*g/100)+' kcal · '+(Math.round(f.p*g/10)/10)+'g prot';}
+  }
+  sel.onchange=calc;gInput.oninput=calc;kInput.oninput=calc;pInput.oninput=calc;
+  const btn=elx(`<button class="ffbtn">Agregar a extras</button>`);
+  btn.onclick=()=>{
+    const v=sel.value;if(v===''){toast('Elegí un alimento');return;}
+    let entry;
+    if(v==='manual'){
+      const nm=(nInput.value||'').trim(),k=parseFloat(kInput.value),g=parseFloat(gInput.value)||0,p=parseFloat(pInput.value)||0;
+      if(!nm){toast('Poné el nombre del alimento');return;}
+      if(isNaN(k)||k<0){toast('Poné las kcal');return;}
+      entry={n:nm,g:g||0,k:Math.round(k),p:Math.round(p*10)/10};
+    }else{
+      const f=FOODS[+v],g=parseFloat(gInput.value);
+      if(isNaN(g)||g<=0){toast('Poné los gramos');return;}
+      entry={n:f.n,g:Math.round(g),k:Math.round(f.k*g/100),p:Math.round(f.p*g/100*10)/10};
+    }
+    st.free.push(entry);save();renderMeals();refreshTop();toast('Sumado: '+entry.n+' · '+entry.k+' kcal');
+  };
+  adder.appendChild(btn);
+  wrap.appendChild(adder);
+  return wrap;
+}
 
 function renderMeals(){
   const c=document.getElementById('meals');c.innerHTML='';
@@ -526,6 +639,7 @@ function renderMeals(){
       });
       body.appendChild(chips);
     });
+    if(m.id==='extras')body.appendChild(buildFreeFood(st));
     const act=document.createElement('div');act.className='meal-actions';
     if(!st.saved){
       const b=elx(`<button class="save-btn">Guardar ${m.nm.toLowerCase()}</button>`);
