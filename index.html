@@ -557,7 +557,7 @@ function buildFreeFood(st){
   adder.appendChild(elx(`<div class="grp-lbl">Agregar comida libre</div>`));
   const sel=document.createElement('select');sel.className='ffsel';
   sel.appendChild(elx(`<option value="">— elegí alimento —</option>`));
-  FOODS.forEach((f,i)=>sel.appendChild(elx(`<option value="${i}">${f.n} (${f.k}/100g)</option>`)));
+  FOODS.map((f,i)=>({f,i})).sort((a,b)=>a.f.n.localeCompare(b.f.n,'es')).forEach(({f,i})=>sel.appendChild(elx(`<option value="${i}">${f.n} (${f.k}/100g)</option>`)));
   sel.appendChild(elx(`<option value="manual">✎ Otro (cargar a mano)</option>`));
   adder.appendChild(sel);
   const gRow=document.createElement('div');gRow.className='ffrow';
@@ -806,7 +806,7 @@ function fmtDate(iso){const p=iso.split('-');return p[2]+'/'+p[1];}
 
 function buildWeightSVG(entries,startW,goalW){
   const W=340,H=210,L=30,R=12,T=12,B=26, plotW=W-L-R, plotH=H-T-B;
-  const lo=70, hi=110;
+  const lo=90, hi=105;
   const d0iso=entries[0].date, lastIso=entries[entries.length-1].date, todayIso=todayKey();
   const endIso=(isoToDate(lastIso)>isoToDate(todayIso))?lastIso:todayIso;
   const realSpan=daysBetween(d0iso,endIso), spanDays=Math.max(1,realSpan);
@@ -814,8 +814,8 @@ function buildWeightSVG(entries,startW,goalW){
   const Y=kg=>T+(hi-kg)/(hi-lo)*plotH;
   const isoAt=i=>{const d=isoToDate(d0iso);d.setDate(d.getDate()+i);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   let g='';
-  // grillas Y + etiquetas (cada 10 kg, 70→110)
-  for(let w=lo;w<=hi;w+=10){
+  // grillas Y + etiquetas (cada 5 kg, 90→105)
+  for(let w=lo;w<=hi;w+=5){
     const y=Y(w).toFixed(1);
     g+=`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="var(--line)" stroke-width="1"/>`;
     g+=`<text x="${L-5}" y="${(+y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="var(--mono)">${w}</text>`;
