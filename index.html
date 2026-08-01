@@ -449,7 +449,30 @@ function freshDay(){
 function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{}};}
 let state=null, view='comida';
 
-function ensureToday(){if(!state.day||state.day.date!==todayKey())state.day=freshDay();}
+let autoClosedInfo=null;
+function autoCloseTick(){
+  try{
+    if(!state||!state.day)return;
+    if(state.day.date!==todayKey())return;            // el cambio de fecha lo maneja ensureToday
+    if(state.day.closed||state.day.reopened)return;    // ya cerrado o reabierto a mano
+    const now=new Date();
+    if(now.getHours()===23 && now.getMinutes()>=55){
+      finalizeDay();save();refreshTop();
+      if(view==='dia')renderDia();
+      renderMeals();renderEntreno();renderCaminar();
+      toast('Día cerrado automáticamente (23:55) ✔');
+    }
+  }catch(e){}
+}
+
+function ensureToday(){
+  // si quedó un día sin cerrar y ya cambió la fecha, lo cierro solo para no perder los datos ni los puntos
+  if(state.day && state.day.date!==todayKey() && !state.day.closed){
+    try{finalizeDay();}catch(e){}
+    autoClosedInfo={date:state.day.date,score:(state.log[state.log.length-1]||{}).score};
+  }
+  if(!state.day||state.day.date!==todayKey())state.day=freshDay();
+}
 function normalize(){
   if(state.day&&state.day.caminata){
     if(state.day.caminata.extraMin===undefined)state.day.caminata.extraMin=(state.day.caminata.extra||0)*60;
@@ -522,7 +545,7 @@ function mealSummary(id){
   return{saved:m.saved,kcal:Math.round(mm.k),prot:Math.round(mm.p),items:names.join(', ')};
 }
 function buildSnapshot(s){
-  const d=state.day,wd=dow();
+  const d=state.day,wd=isoToDate(d.date).getDay();
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const plan=(GYM[wd]?GYM[wd].t:'Descanso / caminata');
   return{
@@ -749,7 +772,7 @@ function renderDia(){
 
 function renderRangos(){
   const c=document.getElementById('rangos');if(!c)return;c.innerHTML='';
-  const cur=RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6];
+  const cur=RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0];
   const idx=RANKS.indexOf(cur), next=RANKS[idx+1];
   const hint=document.getElementById('rankHint');if(hint)hint.textContent=state.total+' pts';
   // tarjeta: rango actual + progreso al próximo
@@ -783,7 +806,7 @@ function renderRangos(){
 }
 
 function refreshTop(){
-  const r=RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6];
+  const r=RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0];
   document.getElementById('rankName').textContent=r.n;
   document.getElementById('totalPts').textContent=state.total;
   document.getElementById('campDay').textContent=preLaunch()?'en espera':('Día '+campaignDay()+' · faltan '+Math.max(0,daysBetween(todayKey(),END))+'d p/ 94kg');
@@ -953,19 +976,28 @@ document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(
   };
 });
 
+function finalizeDay(){
+  // cierra state.day (asume que no está cerrado): puntúa, actualiza total/racha, guarda snapshot en el historial
+  const s=scoreDay();
+  state.total+=s.score;
+  state.streak=s.clean?state.streak+1:0;
+  state.day.closed=true;
+  state.log=state.log.filter(e=>e.date!==state.day.date);
+  state.log.push(buildSnapshot(s));
+  return s;
+}
 document.getElementById('closeBtn').onclick=async()=>{
-  const s=scoreDay();const prev=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
-  state.total+=s.score;state.streak=s.clean?state.streak+1:0;state.day.closed=true;
-  state.log=state.log.filter(e=>e.date!==state.day.date);state.log.push(buildSnapshot(s));
+  const prev=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0]).n;
+  const s=finalizeDay();
   await save();renderDia();refreshTop();
-  const now=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
+  const now=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0]).n;
   if(now!==prev)toast('¡ASCENSO! Ahora sos '+now);
   else if(s.clean&&state.streak>1)toast('Día limpio · racha '+state.streak+' · x'+mult(state.streak).toFixed(1));
   else toast('Día cerrado: '+(s.score>=0?'+':'')+s.score+' pts');
 };
 document.getElementById('reopenBtn').onclick=async()=>{
   const s=scoreDay();state.total-=s.score;state.streak=s.clean?Math.max(0,state.streak-1):state.streak;
-  state.day.closed=false;state.log=state.log.filter(e=>e.date!==state.day.date);
+  state.day.closed=false;state.day.reopened=true;state.log=state.log.filter(e=>e.date!==state.day.date);
   await save();renderDia();refreshTop();renderMeals();renderEntreno();renderCaminar();
 };
 document.getElementById('resetBtn').onclick=async()=>{
@@ -981,7 +1013,7 @@ function exportXLSX(){
   const sn=v=>v===true?'Sí':(v===false?'No':'—');
 
   // Hoja 1: Resumen
-  const rank=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[6]).n;
+  const rank=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0]).n;
   const resumen=[
     ['RECOMPO — MOKA'],['Exportado', new Date().toLocaleString('es-AR')],[],
     ['Puntos totales', state.total],['Racha actual (días)', state.streak],
@@ -1075,6 +1107,13 @@ function boot(){
   document.getElementById('app').style.display='block';
   document.getElementById('tabbar').style.display='flex';
   renderMeals();renderEntreno();renderCaminar();renderPeso();renderRangos();renderMotivacion();renderDia();refreshTop();switchView(view);
+  if(autoClosedInfo){
+    save();
+    toast('Cerré solo el '+autoClosedInfo.date+' que quedó abierto ('+((autoClosedInfo.score>=0?'+':'')+(autoClosedInfo.score??0))+' pts)');
+    autoClosedInfo=null;
+  }
+  if(!window.__recompoAC){window.__recompoAC=setInterval(autoCloseTick,30000);}
+  autoCloseTick();
 }
 (async()=>{state=await store.get()||defaults();state=Object.assign(defaults(),state);boot();})();
 </script>
