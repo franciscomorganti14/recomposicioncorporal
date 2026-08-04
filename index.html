@@ -288,8 +288,6 @@
     <div class="big pos" id="scBig">0</div>
   </div>
   <div class="tog pgood" id="togPeso"><span class="b"></span><span>Pesada + reporte antes de las 10</span><span class="tp">+5</span></div>
-  <div class="tog" id="togRest"><span class="b"></span><span>Restaurante / descontrol sin compensar</span><span class="tp">−20</span></div>
-  <div class="tog" id="togSnack"><span class="b"></span><span>Picoteo nocturno no planificado</span><span class="tp">−10</span></div>
   <button class="closebtn" id="closeBtn">Cerrar el día</button>
   <button class="ghost" id="reopenBtn" style="display:none">Reabrir el día</button>
   <button class="ghost" id="exportBtn" style="margin-top:16px">📊 Exportar todo a Excel</button>
@@ -404,7 +402,7 @@ const MEALS=[
     {lbl:'Plan',items:[{id:'d_huevos',n:'3 huevos duros',k:216,p:19},{id:'d_naranja',n:'1 naranja',k:62,p:1},{id:'d_cafe',n:'Café negro (1 taza)',k:2,p:0}]}
   ]},
   {id:'almuerzo',nm:'Almuerzo',time:'14:00',groups:[
-    {lbl:'Proteína · verdura · grasa',items:[{id:'a_pollo',n:'200g pollo',k:330,p:62},{id:'a_brocoli',n:'200g brócoli',k:68,p:6},{id:'a_aceite',n:'Aceite oliva 10g',k:88,p:0},{id:'a_ketchup',n:'75g ketchup',k:83,p:1}]},
+    {lbl:'Proteína · verdura · grasa',items:[{id:'a_pollo',n:'200g pollo',k:330,p:62},{id:'a_brocoli',n:'200g brócoli',k:68,p:6},{id:'a_aceite',n:'Aceite oliva 10g',k:88,p:0},{id:'a_ketchup',n:'100g ketchup',k:110,p:1}]},
     {lbl:'Carbo — elegí uno',items:[{id:'a_arroz',n:'200g arroz cocido',k:260,p:5},{id:'a_papa',n:'200g papa',k:172,p:4},{id:'a_batata',n:'200g batata',k:180,p:3}]}
   ]},
   {id:'merienda',nm:'Merienda',time:'17:00',groups:[
@@ -413,7 +411,7 @@ const MEALS=[
   ]},
   {id:'cena',nm:'Cena',time:'20:00',groups:[
     {lbl:'Proteína — elegí una',items:[{id:'c_pollo',n:'200g pollo',k:330,p:62},{id:'c_salmon',n:'200g salmón',k:416,p:44}]},
-    {lbl:'Guarnición · verdura · grasa',items:[{id:'c_papa',n:'100g papa',k:86,p:2},{id:'c_espinaca',n:'200g espinaca',k:46,p:6},{id:'c_huevos',n:'2 huevos duros',k:144,p:13},{id:'c_aceite',n:'Aceite oliva 10g',k:88,p:0},{id:'c_ketchup',n:'75g ketchup',k:83,p:1}]},
+    {lbl:'Guarnición · verdura · grasa',items:[{id:'c_papa',n:'200g papa',k:172,p:4},{id:'c_batata',n:'200g batata',k:180,p:3},{id:'c_espinaca',n:'200g espinaca',k:46,p:6},{id:'c_huevos',n:'2 huevos duros',k:144,p:13},{id:'c_aceite',n:'Aceite oliva 10g',k:88,p:0},{id:'c_ketchup',n:'100g ketchup',k:110,p:1}]},
     {lbl:'Fruta — elegí una',items:[{id:'c_naranja',n:'1 naranja',k:62,p:1},{id:'c_pomelo',n:'1 pomelo',k:70,p:1}]}
   ]},
   {id:'extras',nm:'Extras',time:'',groups:[
@@ -424,9 +422,9 @@ const MEALS=[
 const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
 
 const GYM={
-  1:{t:'Tren inferior',ex:[['Sentadilla','40 kg + barra'],['Gemelos','40 kg + barra'],['Extensión de cuádriceps','45 kg'],['Curl femoral','50 kg']]},
+  1:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Gemelos','45 kg + barra'],['Extensión de cuádriceps','45 kg'],['Curl femoral','50 kg']]},
   2:{t:'Tren superior',ex:[['Press de banca','40 kg + barra'],['Dominadas con peso','0 kg','4×3'],['Remo en polea','50 kg'],['Press de hombros','mancuernas 12 kg']]},
-  4:{t:'Tren inferior',ex:[['Sentadilla','40 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','a elección']]},
+  4:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','45 kg + barra']]},
   5:{t:'Tren superior',ex:[['Press de banca','—'],['Jalón al pecho','—'],['Remo en polea','—'],['Press de hombros','—']]}
 };
 
@@ -525,11 +523,8 @@ function scoreDay(){
   if(td&&!d.entreno.done)autoNeg+=30;
   if(wd&&!d.caminata.done)autoNeg+=15;
   if(mac.p<PROT_MIN)autoNeg+=15;
-  // negativos manuales
-  let manNeg=0;
-  if(d.flags.rest)manNeg+=20;
-  if(d.flags.snack)manNeg+=10;
-  const neg=autoNeg+manNeg;
+  if(mac.k>2500)autoNeg+=25; // te pasaste de 2500 kcal en el día
+  const neg=autoNeg;
   const clean=neg===0;
   const m=clean?mult(state.streak):1;
   const score=Math.round(pos*m)-neg;
@@ -764,8 +759,6 @@ function renderDia(){
   document.getElementById('scBig').className='big '+(s.score>=0?'pos':'neg');
   document.getElementById('scBreak').textContent=`+${s.pos} · x${s.m.toFixed(1)}${s.clean?'':' (racha rota)'} · −${s.neg}`;
   document.getElementById('togPeso').classList.toggle('on',state.day.flags.peso);
-  document.getElementById('togRest').classList.toggle('on',state.day.flags.rest);
-  document.getElementById('togSnack').classList.toggle('on',state.day.flags.snack);
   document.getElementById('closeBtn').style.display=state.day.closed?'none':'block';
   document.getElementById('reopenBtn').style.display=state.day.closed?'block':'none';
 }
@@ -970,7 +963,7 @@ function switchView(v){
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
 
-['peso','rest','snack'].forEach(f=>{
+['peso'].forEach(f=>{
   document.getElementById('tog'+f.charAt(0).toUpperCase()+f.slice(1)).onclick=()=>{
     if(state.day.closed)return;state.day.flags[f]=!state.day.flags[f];save();renderDia();refreshTop();
   };
