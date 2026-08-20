@@ -338,10 +338,13 @@ const store={
 };
 
 // ---------- config ----------
-const START='2026-08-19', END='2026-12-31';
+const START='2026-08-20', END='2026-12-31';
 const GOAL_W=92.5;
 const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
+// peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
+const WEEK_TARGET_W=[null,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5,94,93.5,93,92.5];
+function weekTargetW(w){return WEEK_TARGET_W[w];}
 
 const SPORTS=[
   {id:'padel',n:'Pádel 1 h',kcal:600},
@@ -759,13 +762,14 @@ function renderCaminar(){
 function renderDia(){
   const s=scoreDay();
   const dk=document.getElementById('diaKcal');dk.textContent=s.mac.k+' / '+KCAL_TARGET;
-  dk.style.color=s.mac.k>KCAL_TARGET+150?'var(--alert)':'var(--bone)';
+  dk.style.color=s.mac.k<=KCAL_TARGET?'var(--olive)':'var(--alert)';
   const dp=document.getElementById('diaProt');dp.textContent=s.mac.p+' / '+PROT_MIN+' g';
-  dp.style.color=s.mac.p>=PROT_MIN?'var(--olive)':'var(--brass)';
+  dp.style.color=s.mac.p>=PROT_MIN?'var(--olive)':'var(--alert)';
   const dc=document.getElementById('diaCarb');dc.textContent=Math.round(s.mac.c||0)+' / '+CARB_TARGET+' g';
+  dc.style.color=(s.mac.c||0)<=CARB_TARGET?'var(--olive)':'var(--alert)';
   const dg=document.getElementById('diaGrasa');dg.textContent=Math.round(s.mac.f||0)+' / '+FAT_TARGET+' g';
-  dg.style.color=(s.mac.f||0)>FAT_TARGET+15?'var(--alert)':'var(--bone)';
-  document.getElementById('diaBurn').textContent=burn();
+  dg.style.color=(s.mac.f||0)<=FAT_TARGET?'var(--olive)':'var(--alert)';
+  const db=document.getElementById('diaBurn');db.textContent=burn();db.style.color='var(--bone)';
   const df=document.getElementById('diaDef');df.textContent=(s.def>0?'+':'')+s.def+' kcal';
   df.style.color=s.def<0?'var(--olive)':(s.def>0?'var(--alert)':'var(--muted)');
   document.getElementById('scBig').textContent=(s.score>=0?'+':'')+s.score;
@@ -871,13 +875,13 @@ function refreshTop(){
   document.getElementById('campDay').textContent=preLaunch()?'en espera':('Día '+campaignDay()+' · faltan '+Math.max(0,daysBetween(todayKey(),END))+'d p/ '+GOAL_W+'kg');
   const mac=dayMacros();
   const mk=document.getElementById('miniKcal');mk.textContent=mac.k+'/'+KCAL_TARGET;
-  mk.className='mn '+(mac.k>KCAL_TARGET+150?'over':mac.k>=KCAL_TARGET-300?'ok':'low');
+  mk.className='mn '+(mac.k<=KCAL_TARGET?'ok':'over');
   const mp=document.getElementById('miniProt');mp.textContent=mac.p+'/'+PROT_MIN;
-  mp.className='mn '+(mac.p>=PROT_MIN?'ok':'low');
+  mp.className='mn '+(mac.p>=PROT_MIN?'ok':'over');
   const mc=document.getElementById('miniCarb');mc.textContent=Math.round(mac.c||0)+'/'+CARB_TARGET;
-  mc.className='mn '+((mac.c||0)>CARB_TARGET+40?'over':'');
+  mc.className='mn '+((mac.c||0)<=CARB_TARGET?'ok':'over');
   const mg=document.getElementById('miniGrasa');mg.textContent=Math.round(mac.f||0)+'/'+FAT_TARGET;
-  mg.className='mn '+((mac.f||0)>FAT_TARGET+15?'over':'');
+  mg.className='mn '+((mac.f||0)<=FAT_TARGET?'ok':'over');
   document.getElementById('miniStreak').textContent='x'+mult(state.streak).toFixed(1);
   if(view==='dia')renderDia();
   if(view==='rangos')renderRangos();
@@ -1029,8 +1033,7 @@ function completedWeeks(){return preLaunch()?0:Math.floor(campaignDay()/7);}
 function currentWeekNum(){return preLaunch()?0:Math.max(1,weekOf(todayKey()));}
 function weightOnOrBefore(iso){let best=null;Object.keys(state.weights||{}).sort().forEach(d=>{if(d<=iso)best=state.weights[d];});return best;}
 
-function analyzeWeek(w){
-  const ws=weekStart(w), we=weekEnd(w);
+function analyzeRange(ws,we){
   const days=(state.log||[]).filter(e=>e.date>=ws&&e.date<=we);
   const n=days.length;
   const sum=f=>days.reduce((a,e)=>a+(f(e)||0),0);
@@ -1046,10 +1049,25 @@ function analyzeWeek(w){
   });
   const wEnd=weightOnOrBefore(we);
   let base=weightOnOrBefore(isoAdd(ws,-1));
-  if(base==null){const inWeek=Object.keys(state.weights||{}).filter(d=>d>=ws&&d<=we).sort();if(inWeek.length)base=state.weights[inWeek[0]];}
+  if(base==null){const inRange=Object.keys(state.weights||{}).filter(d=>d>=ws&&d<=we).sort();if(inRange.length)base=state.weights[inRange[0]];}
   let delta=null;
   if(wEnd!=null&&base!=null)delta=Math.round((wEnd-base)*10)/10;
-  return{w,ws,we,n,avgKcal,avgProt,avgCarb,avgFat,avgDef,totDef,cleanDays,pts,trainDone,trainExp,walkDone,walkExp,delta,wEnd};
+  return{ws,we,n,avgKcal,avgProt,avgCarb,avgFat,avgDef,totDef,cleanDays,pts,trainDone,trainExp,walkDone,walkExp,delta,wEnd};
+}
+function analyzeWeek(w){return Object.assign({w},analyzeRange(weekStart(w),weekEnd(w)));}
+function analyzeCumulative(w){return Object.assign({w},analyzeRange(weekStart(1),weekEnd(w)));}
+function pesoObjetivoRow(w,actualW){
+  const target=weekTargetW(w);
+  if(target==null)return '';
+  const diff=actualW!=null?Math.round((actualW-target)*10)/10:null;
+  const diffColor=diff==null?'var(--muted)':(diff<=0?'var(--olive)':'var(--alert)');
+  const diffLabel=diff==null?'—':((diff>0?'+':'')+diff.toFixed(1)+' kg');
+  const actualLabel=actualW!=null?actualW.toFixed(1)+' kg':'—';
+  return `<div class="wstats" style="margin-top:12px;">
+    <div><span class="wl">Objetivo semana</span><span class="wv">${target} kg</span></div>
+    <div><span class="wl">Peso real</span><span class="wv">${actualLabel}</span></div>
+    <div><span class="wl">Diferencia</span><span class="wv" style="color:${diffColor}">${diffLabel}</span></div>
+  </div>`;
 }
 
 function weekTips(a){
@@ -1090,6 +1108,7 @@ function renderAnalisis(){
     const card=document.createElement('div');card.className='card'+(done?' done':'');
     const tag=done?'<span style="color:var(--olive)">completa</span>':'<span style="color:var(--brass)">en curso</span>';
     card.appendChild(elx(`<div class="ct">Semana ${w} · ${tag}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
+    const pr=pesoObjetivoRow(w,a.wEnd);if(pr)card.appendChild(elx(pr));
     if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados en esta semana.</div>`));c.appendChild(card);return;}
     const dcol=a.delta==null?'var(--muted)':(a.delta<=0?'var(--olive)':'var(--alert)');
     const dtxt=a.delta==null?'—':((a.delta>0?'+':'')+a.delta.toFixed(1)+' kg');
@@ -1117,6 +1136,41 @@ function renderAnalisis(){
     card.appendChild(ul);
     c.appendChild(card);
   });
+
+  // ---------- Sumatoria de semanas (acumulado desde la Semana 1) ----------
+  const sumIntro=document.createElement('div');sumIntro.className='card';
+  sumIntro.innerHTML=`<div class="ct">📈 Sumatoria de semanas</div><div class="cd">Acumulado desde la Semana 1 hasta cada semana — la tendencia general, no solo la semana suelta.</div>`;
+  c.appendChild(sumIntro);
+  for(let w=1;w<=cur;w++){
+    const a=analyzeCumulative(w);
+    const done=w<=cw;
+    const card=document.createElement('div');card.className='card'+(done?' done':'');
+    const tag=done?'<span style="color:var(--olive)">completa</span>':'<span style="color:var(--brass)">en curso</span>';
+    card.appendChild(elx(`<div class="ct">Semanas 1–${w} · ${tag}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
+    const pr=pesoObjetivoRow(w,a.wEnd);if(pr)card.appendChild(elx(pr));
+    if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados todavía.</div>`));c.appendChild(card);continue;}
+    const dcol=a.delta==null?'var(--muted)':(a.delta<=0?'var(--olive)':'var(--alert)');
+    const dtxt=a.delta==null?'—':((a.delta>0?'+':'')+a.delta.toFixed(1)+' kg');
+    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">Días</span><span class="wv">${a.n}</span></div>
+      <div><span class="wl">Limpios</span><span class="wv" style="color:var(--olive)">${a.cleanDays}</span></div>
+      <div><span class="wl">Δ peso</span><span class="wv" style="color:${dcol}">${dtxt}</span></div>
+      <div><span class="wl">Puntos</span><span class="wv" style="color:${a.pts>=0?'var(--olive)':'var(--alert)'}">${a.pts>=0?'+':''}${a.pts}</span></div>
+    </div>`));
+    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">kcal/día</span><span class="wv">${a.avgKcal}</span></div>
+      <div><span class="wl">Prot/día</span><span class="wv" style="color:${a.avgProt>=PROT_MIN?'var(--olive)':'var(--alert)'}">${a.avgProt}g</span></div>
+      <div><span class="wl">Carb/día</span><span class="wv">${a.avgCarb}g</span></div>
+      <div><span class="wl">Grasa/día</span><span class="wv">${a.avgFat}g</span></div>
+    </div>`));
+    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">Déficit/día</span><span class="wv" style="color:${a.avgDef<0?'var(--olive)':(a.avgDef>0?'var(--alert)':'var(--muted)')}">${a.avgDef>0?'+':''}${a.avgDef}</span></div>
+      <div><span class="wl">Entrenos</span><span class="wv">${a.trainDone}/${a.trainExp}</span></div>
+      <div><span class="wl">Caminatas</span><span class="wv">${a.walkDone}/${a.walkExp}</span></div>
+      <div><span class="wl">Déf. total</span><span class="wv">${a.totDef}</span></div>
+    </div>`));
+    c.appendChild(card);
+  }
 }
 
 function switchView(v){
