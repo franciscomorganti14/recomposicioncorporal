@@ -338,12 +338,12 @@ const store={
 };
 
 // ---------- config ----------
-const START='2026-08-20', END='2026-12-31';
-const GOAL_W=92.5;
+const START='2026-08-24', END='2026-12-31';
+const GOAL_W=94.5;
 const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
-const WEEK_TARGET_W=[null,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5,94,93.5,93,92.5];
+const WEEK_TARGET_W=[null,103.5,103,102.5,102,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5];
 function weekTargetW(w){return WEEK_TARGET_W[w];}
 
 const SPORTS=[
