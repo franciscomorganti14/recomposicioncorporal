@@ -339,7 +339,7 @@ const store={
 
 // ---------- config ----------
 const START='2026-08-24', END='2026-12-31';
-const GOAL_W=94.5;
+const START_W=104, GOAL_W=94.5;
 const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
@@ -946,10 +946,10 @@ function buildWeightSVG(entries,startW,goalW){
 function renderPeso(){
   const c=document.getElementById('peso');if(!c)return;c.innerHTML='';
   const entries=weightEntries();
-  const startW=100, goalW=GOAL_W;
+  const startW=START_W, goalW=GOAL_W;
   const last=entries.length?entries[entries.length-1].kg:null;
   const todayW=state.weights[todayKey()];
-  const defVal=(todayW!=null)?todayW:(last!=null?last:100);
+  const defVal=(todayW!=null)?todayW:(last!=null?last:START_W);
   // input
   const inp=document.createElement('div');inp.className='card';
   inp.appendChild(elx(`<div class="ct">Pesada de hoy</div><div class="cd">Pesate a la mañana, en ayunas y después del baño, para comparar siempre en igualdad de condiciones. Suma +5 pts.</div>`));
@@ -1266,7 +1266,7 @@ function exportXLSX(){
   const wrows=[['Fecha','Peso (kg)','Δ día (kg)','Δ desde inicio (kg)','Falta a meta (kg)']];
   we.forEach((e,i)=>{
     const prev=i>0?we[i-1].kg:null;
-    wrows.push([e.date, e.kg, prev!=null?Math.round((e.kg-prev)*10)/10:'—', Math.round((e.kg-100)*10)/10, Math.round((e.kg-GOAL_W)*10)/10]);
+    wrows.push([e.date, e.kg, prev!=null?Math.round((e.kg-prev)*10)/10:'—', Math.round((e.kg-START_W)*10)/10, Math.round((e.kg-GOAL_W)*10)/10]);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wrows), 'Peso');
 
