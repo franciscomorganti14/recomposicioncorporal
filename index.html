@@ -408,23 +408,23 @@ const QUOTES=[
 // meal catalogs — grupos: pick=elegir 1 sugerido, pero se pueden marcar varios
 const MEALS=[
   {id:'desayuno',nm:'Desayuno',time:'09:30',groups:[
-    {lbl:'Plan',items:[{id:'d_huevos',n:'3 huevos duros',k:216,p:19,c:1,f:15},{id:'d_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'d_cafe',n:'Café negro (1 taza)',k:2,p:0,c:0,f:0},{id:'d_cafeleche300',n:'Café con leche 300ml',k:135,p:7,c:11,f:8,type:'counter'}]}
+    {lbl:'Plan',items:[{id:'d_huevos',n:'Huevo duro',k:72,p:6,c:0,f:5,type:'counter'},{id:'d_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'d_cafe',n:'Café negro (1 taza)',k:2,p:0,c:0,f:0},{id:'d_cafeleche200',n:'Café con leche 200ml',k:90,p:5,c:7,f:5,type:'counter'}]}
   ]},
   {id:'almuerzo',nm:'Almuerzo',time:'14:00',groups:[
-    {lbl:'Proteína · verdura · grasa',items:[{id:'a_pollo',n:'200g pollo',k:330,p:62,c:0,f:7},{id:'a_carne',n:'200g carne',k:500,p:52,c:0,f:30},{id:'a_brocoli',n:'200g brócoli',k:68,p:6,c:13,f:1},{id:'a_aceite',n:'Aceite oliva 10g',k:88,p:0,c:0,f:10},{id:'a_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0}]},
+    {lbl:'Proteína · verdura · grasa',items:[{id:'a_pollo',n:'200g pollo',k:330,p:62,c:0,f:7},{id:'a_carne',n:'200g carne',k:500,p:52,c:0,f:30},{id:'a_brocoli',n:'200g brócoli',k:68,p:6,c:13,f:1},{id:'a_aceite',n:'Aceite oliva 10g',k:88,p:0,c:0,f:10},{id:'a_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0},{id:'a_ketchup50',n:'50g ketchup',k:55,p:0,c:13,f:0}]},
     {lbl:'Carbo — elegí uno',items:[{id:'a_arroz',n:'200g arroz cocido',k:260,p:5,c:56,f:1},{id:'a_papa',n:'200g papa',k:172,p:4,c:40,f:0},{id:'a_batata',n:'200g batata',k:180,p:3,c:42,f:0}]}
   ]},
   {id:'merienda',nm:'Merienda',time:'17:00',groups:[
-    {lbl:'Proteína',items:[{id:'m_huevos',n:'2 huevos duros',k:144,p:13,c:1,f:10}]},
+    {lbl:'Proteína',items:[{id:'m_huevos',n:'Huevo duro',k:72,p:6,c:0,f:5,type:'counter'}]},
     {lbl:'Fruta — elegí una',items:[{id:'m_pomelo',n:'1 pomelo',k:70,p:1,c:18,f:0},{id:'m_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'m_banana',n:'1 banana',k:105,p:1,c:27,f:0},{id:'m_manzana',n:'1 manzana',k:95,p:0,c:25,f:0}]}
   ]},
   {id:'cena',nm:'Cena',time:'20:00',groups:[
     {lbl:'Proteína — elegí una',items:[{id:'c_pollo',n:'200g pollo',k:330,p:62,c:0,f:7},{id:'c_carne',n:'200g carne',k:500,p:52,c:0,f:30},{id:'c_salmon',n:'200g salmón',k:416,p:44,c:0,f:26}]},
-    {lbl:'Guarnición · verdura · grasa',items:[{id:'c_papa',n:'200g papa',k:172,p:4,c:40,f:0},{id:'c_batata',n:'200g batata',k:180,p:3,c:42,f:0},{id:'c_brocoli',n:'200g brócoli',k:68,p:6,c:13,f:1},{id:'c_huevos',n:'2 huevos duros',k:144,p:13,c:1,f:10},{id:'c_aceite',n:'Aceite oliva 10g',k:88,p:0,c:0,f:10},{id:'c_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0}]},
+    {lbl:'Guarnición · verdura · grasa',items:[{id:'c_papa',n:'200g papa',k:172,p:4,c:40,f:0},{id:'c_batata',n:'200g batata',k:180,p:3,c:42,f:0},{id:'c_brocoli',n:'200g brócoli',k:68,p:6,c:13,f:1},{id:'c_huevos',n:'2 huevos duros',k:144,p:13,c:1,f:10},{id:'c_aceite',n:'Aceite oliva 10g',k:88,p:0,c:0,f:10},{id:'c_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0},{id:'c_ketchup50',n:'50g ketchup',k:55,p:0,c:13,f:0}]},
     {lbl:'Fruta — elegí una',items:[{id:'c_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'c_pomelo',n:'1 pomelo',k:70,p:1,c:18,f:0}]}
   ]},
   {id:'extras',nm:'Extras',time:'',groups:[
-    {lbl:'Café — tocá + / − las que tomaste',items:[{id:'x_cafe',n:'Café negro',k:2,p:0,c:0,f:0,type:'counter'},{id:'x_cafeleche200',n:'Café con leche 200ml',k:90,p:5,c:7,f:5,type:'counter'},{id:'x_cafeleche300',n:'Café con leche 300ml',k:135,p:7,c:11,f:8,type:'counter'}]},
+    {lbl:'Café — tocá + / − las que tomaste',items:[{id:'x_cafe',n:'Café negro',k:2,p:0,c:0,f:0,type:'counter'},{id:'x_cafeleche200',n:'Café con leche 200ml',k:90,p:5,c:7,f:5,type:'counter'}]},
     {lbl:'Sumás si te saliste del plan',items:[{id:'x_barrita',n:'Barrita de proteína',k:210,p:20,c:20,f:7},{id:'x_whey',n:'1 scoop whey',k:120,p:24,c:3,f:2},{id:'x_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'x_pomelo',n:'1 pomelo',k:70,p:1,c:18,f:0},{id:'x_yogur',n:'Yogur proteico',k:100,p:15,c:8,f:2},{id:'x_huevo',n:'1 huevo duro',k:72,p:6,c:0,f:5},{id:'x_pollo',n:'100g pollo',k:165,p:31,c:0,f:4},{id:'x_carne',n:'200g carne',k:500,p:52,c:0,f:30},{id:'x_arroz',n:'100g arroz',k:130,p:3,c:28,f:0},{id:'x_papa',n:'100g papa',k:86,p:2,c:20,f:0},{id:'x_batata',n:'100g batata',k:90,p:2,c:21,f:0},{id:'x_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0},{id:'x_frutos',n:'Frutos secos 30g',k:180,p:6,c:6,f:15},{id:'x_pochoclos',n:'Balde grande pochoclos dulces',k:1000,p:8,c:150,f:40}]}
   ]}
 ];
