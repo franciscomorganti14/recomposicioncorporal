@@ -1561,15 +1561,20 @@ async function driveBackupNow(silent){
       res=await driveCreateFile(json);
     }
     if(!res.ok){
-      let detail='';
-      try{const errBody=await res.json();detail=(errBody&&errBody.error&&errBody.error.message)||'';}catch(e){}
-      const err=new Error('drive upload failed: HTTP '+res.status+(detail?' — '+detail:''));
+      let detail='',reason='';
+      try{
+        const errBody=await res.json();
+        detail=(errBody&&errBody.error&&errBody.error.message)||'';
+        reason=(errBody&&errBody.error&&errBody.error.errors&&errBody.error.errors[0]&&errBody.error.errors[0].reason)||'';
+      }catch(e){}
+      const err=new Error('HTTP '+res.status+(reason?' ('+reason+')':'')+(detail?' — '+detail:''));
       err.status=res.status;
       throw err;
     }
     data=await res.json().catch(()=>({}));
     if(data&&data.id)localStorage.setItem('moka:driveFileId',data.id);
     localStorage.setItem('moka:driveLastBackup',String(Date.now()));
+    try{localStorage.removeItem('moka:driveLastError');}catch(e){}
     if(!silent)toast('Backup subido a Drive ✔');
   }catch(e){
     console.error('driveBackupNow error:',e);
@@ -1578,10 +1583,9 @@ async function driveBackupNow(silent){
       driveAccessToken=null;driveTokenExpiry=0;
       try{localStorage.removeItem('moka:driveConnected');}catch(_e){}
     }
-    if(!silent){
-      const msg=(e&&e.status)?('Error subiendo a Drive (HTTP '+e.status+')'):'Error subiendo a Drive';
-      toast(msg);
-    }
+    const fullMsg=(e&&e.message)?e.message:'error desconocido';
+    try{localStorage.setItem('moka:driveLastError',fullMsg);}catch(_e){}
+    if(!silent)toast('Error subiendo a Drive — mirá el detalle abajo del botón');
   }
   renderDriveStatus();
 }
@@ -1596,9 +1600,13 @@ function driveStatusText(){
 }
 function renderDriveStatus(){
   const el=document.getElementById('driveStatus');if(!el)return;
-  let connected=false;
+  let connected=false,lastError='';
   try{connected=localStorage.getItem('moka:driveConnected')==='1';}catch(e){}
-  el.textContent=driveEnabled()?('Drive: '+(connected?'conectado':'no conectado')+' · último backup: '+driveStatusText()):'Backup a Drive: falta configurar el Client ID';
+  try{lastError=localStorage.getItem('moka:driveLastError')||'';}catch(e){}
+  if(!driveEnabled()){el.innerHTML='Backup a Drive: falta configurar el Client ID';return;}
+  let html='Drive: '+(connected?'conectado':'no conectado')+' · último backup: '+driveStatusText();
+  if(lastError)html+='<br><span style="color:var(--alert)">Último error: '+lastError.replace(/</g,'&lt;')+'</span>';
+  el.innerHTML=html;
 }
 
 // ---------- backup / restore (JSON) ----------
