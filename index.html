@@ -1523,9 +1523,30 @@ function driveEnsureToken(interactive){
     }catch(e){resolve(false);}
   });
 }
+async function driveEnsureFolder(){
+  // con scope drive.file la app solo puede escribir en carpetas que ella misma creó
+  // (no puede escribir directo en una carpeta ya existente sin pasar por el selector de Google) —
+  // por eso usamos/creamos una carpeta propia de la app en vez de la carpeta "App de Control de Peso".
+  let folderId=null;
+  try{folderId=localStorage.getItem('moka:driveFolderId');}catch(e){}
+  if(folderId)return folderId;
+  try{
+    const res=await fetch('https://www.googleapis.com/drive/v3/files',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'},
+      body:JSON.stringify({name:'Recompo — Moka (backups)',mimeType:'application/vnd.google-apps.folder'})
+    });
+    if(!res.ok)return null;
+    const data=await res.json().catch(()=>({}));
+    if(data&&data.id){try{localStorage.setItem('moka:driveFolderId',data.id);}catch(e){}return data.id;}
+  }catch(e){}
+  return null;
+}
 async function driveCreateFile(json){
+  const folderId=await driveEnsureFolder();
   const boundary='moka-boundary-'+Date.now();
   const metadata={name:'recompo-backup.json',mimeType:'application/json'};
+  if(folderId)metadata.parents=[folderId];
   const body='--'+boundary+'\r\n'+
     'Content-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n'+
     '--'+boundary+'\r\n'+
@@ -1546,6 +1567,21 @@ async function driveBackupNow(silent){
   try{
     let res,data={};
     if(fileId){
+      // si el archivo quedó de una versión anterior (creado en la raíz de Drive), lo movemos
+      // a la carpeta de backups de la app la primera vez, para que quede todo junto
+      try{
+        const moved=localStorage.getItem('moka:driveFileMoved')==='1';
+        if(!moved){
+          const folderId=await driveEnsureFolder();
+          if(folderId){
+            await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?addParents='+folderId+'&removeParents=root&fields=id,parents',{
+              method:'PATCH',
+              headers:{'Authorization':'Bearer '+driveAccessToken}
+            });
+          }
+          localStorage.setItem('moka:driveFileMoved','1');
+        }
+      }catch(e){}
       res=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=media',{
         method:'PATCH',
         headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'},
