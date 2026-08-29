@@ -431,10 +431,10 @@ const MEALS=[
 const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
 
 const GYM={
-  1:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Gemelos','45 kg + barra'],['Extensión de cuádriceps','45 kg'],['Curl femoral','50 kg']]},
-  2:{t:'Tren superior',ex:[['Press de banca','40 kg + barra'],['Dominadas con peso','0 kg','4×3'],['Remo en polea','50 kg'],['Press de hombros','mancuernas 12 kg']]},
-  4:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','45 kg + barra']]},
-  5:{t:'Tren superior',ex:[['Press de banca','—'],['Jalón al pecho','—'],['Remo en polea','—'],['Press de hombros','—']]}
+  2:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Gemelos','45 kg + barra'],['Extensión de cuádriceps','45 kg'],['Curl femoral','50 kg']]},
+  3:{t:'Tren superior',ex:[['Press de banca','40 kg + barra'],['Dominadas con peso','0 kg','4×3'],['Remo en polea','50 kg'],['Press de hombros','mancuernas 12 kg']]},
+  5:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Extensión de cuádriceps','35 kg'],['Curl femoral','45 kg'],['Gemelos','45 kg + barra']]},
+  6:{t:'Tren superior',ex:[['Press de banca','—'],['Jalón al pecho','—'],['Remo en polea','—'],['Press de hombros','—']]}
 };
 
 // ---------- helpers ----------
@@ -444,7 +444,7 @@ function daysBetween(a,b){return Math.round((isoToDate(b)-isoToDate(a))/86400000
 function campaignDay(){return daysBetween(START,todayKey())+1;}
 function preLaunch(){return todayKey()<START;}
 function dow(){return new Date().getDay();}
-function isTrainingDay(){return[1,2,4,5].includes(dow());}
+function isTrainingDay(){return[2,3,5,6].includes(dow());}
 function isWalkDay(){return[1,2,3,4,5,6].includes(dow());}
 function mult(streak){return Math.min(1.5,1+streak*0.1);}
 function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
@@ -697,7 +697,7 @@ function renderEntreno(){
   const g=GYM[dow()];
   document.getElementById('entHint').textContent=g?'1 hora · 4 ejercicios':'';
   if(!g){
-    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">${dow()===0?'😴':'🚶'}</div><div class="rt">${dow()===0?'Descanso total':'Hoy sin fierro'}</div><div class="cd" style="margin-top:8px">${dow()===0?'Domingo: ni fierro ni caminata. Recuperá.':'Miércoles/Sábado: sólo la caminata. Andá a la pestaña Caminar.'}</div></div></div>`));
+    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">${dow()===0?'😴':'🚶'}</div><div class="rt">${dow()===0?'Descanso total':'Hoy sin fierro'}</div><div class="cd" style="margin-top:8px">${dow()===0?'Domingo: ni fierro ni caminata. Recuperá.':'Lunes/Jueves: sólo la caminata. Andá a la pestaña Caminar.'}</div></div></div>`));
   }else{
     const done=state.day.entreno.done;
     const card=document.createElement('div');card.className='card'+(done?' done':'');
@@ -1044,7 +1044,7 @@ function analyzeRange(ws,we){
   const pts=sum(e=>e.score);
   let trainDone=0,trainExp=0,walkDone=0,walkExp=0;
   days.forEach(e=>{const dd=isoToDate(e.date).getDay();
-    if([1,2,4,5].includes(dd)){trainExp++;if(e.entreno)trainDone++;}
+    if([2,3,5,6].includes(dd)){trainExp++;if(e.entreno)trainDone++;}
     if([1,2,3,4,5,6].includes(dd)){walkExp++;if(e.caminata)walkDone++;}
   });
   const wEnd=weightOnOrBefore(we);
