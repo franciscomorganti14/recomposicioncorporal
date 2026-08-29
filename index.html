@@ -1523,43 +1523,67 @@ function driveEnsureToken(interactive){
     }catch(e){resolve(false);}
   });
 }
+async function driveCreateFile(json){
+  const boundary='moka-boundary-'+Date.now();
+  const metadata={name:'recompo-backup.json',mimeType:'application/json'};
+  const body='--'+boundary+'\r\n'+
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n'+
+    '--'+boundary+'\r\n'+
+    'Content-Type: application/json\r\n\r\n'+json+'\r\n'+
+    '--'+boundary+'--';
+  return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'multipart/related; boundary='+boundary},
+    body:body
+  });
+}
 async function driveBackupNow(silent){
   if(!driveEnabled())return;
   const ok=await driveEnsureToken(!silent);
   if(!ok){if(!silent)toast('No se pudo conectar a Drive');return;}
   const json=JSON.stringify(state);
-  const fileId=localStorage.getItem('moka:driveFileId');
+  let fileId=localStorage.getItem('moka:driveFileId');
   try{
-    let res, data={};
+    let res,data={};
     if(fileId){
       res=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=media',{
         method:'PATCH',
         headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'},
         body:json
       });
+      if(res.status===404){
+        // el archivo guardado ya no existe en Drive (se borró o cambió de cuenta) — creamos uno nuevo
+        localStorage.removeItem('moka:driveFileId');
+        fileId=null;
+        res=await driveCreateFile(json);
+      }
     }else{
-      const boundary='moka-boundary-'+Date.now();
-      const metadata={name:'recompo-backup.json',mimeType:'application/json'};
-      const body='--'+boundary+'\r\n'+
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n'+
-        '--'+boundary+'\r\n'+
-        'Content-Type: application/json\r\n\r\n'+json+'\r\n'+
-        '--'+boundary+'--';
-      res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
-        method:'POST',
-        headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'multipart/related; boundary='+boundary},
-        body:body
-      });
+      res=await driveCreateFile(json);
     }
-    if(!res.ok)throw new Error('drive upload failed');
+    if(!res.ok){
+      let detail='';
+      try{const errBody=await res.json();detail=(errBody&&errBody.error&&errBody.error.message)||'';}catch(e){}
+      const err=new Error('drive upload failed: HTTP '+res.status+(detail?' — '+detail:''));
+      err.status=res.status;
+      throw err;
+    }
     data=await res.json().catch(()=>({}));
     if(data&&data.id)localStorage.setItem('moka:driveFileId',data.id);
     localStorage.setItem('moka:driveLastBackup',String(Date.now()));
     if(!silent)toast('Backup subido a Drive ✔');
-    renderDriveStatus();
   }catch(e){
-    if(!silent)toast('Error subiendo a Drive');
+    console.error('driveBackupNow error:',e);
+    if(e&&e.status===401){
+      // token vencido o revocado: lo descartamos para forzar un login nuevo la próxima vez
+      driveAccessToken=null;driveTokenExpiry=0;
+      try{localStorage.removeItem('moka:driveConnected');}catch(_e){}
+    }
+    if(!silent){
+      const msg=(e&&e.status)?('Error subiendo a Drive (HTTP '+e.status+')'):'Error subiendo a Drive';
+      toast(msg);
+    }
   }
+  renderDriveStatus();
 }
 function driveStatusText(){
   const t=localStorage.getItem('moka:driveLastBackup');
