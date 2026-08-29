@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg:#15170f;--panel:#20241a;--panel-2:#282d20;--line:#3a4030;
@@ -137,6 +138,11 @@
   /* caminata extra */
   .extotal{text-align:center;font-family:var(--mono);font-weight:700;font-size:26px;color:var(--olive);margin:12px 0 12px;}
   .extotal span{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:2px;}
+
+  /* heatmap racha */
+  .heatgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:10px;}
+  .heatcell{aspect-ratio:1;border-radius:3px;background:var(--line);}
+  .heatdow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:12px;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;}
 
   /* rangos */
   .rkscale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;}
@@ -280,6 +286,12 @@
     <div class="macro-row"><div class="ml2">Déficit</div><div class="mv" id="diaDef" style="color:var(--olive)">0</div></div>
   </div>
 
+  <div class="card">
+    <div class="ct">Notas del día</div>
+    <div class="cd">Opcional: mal dormido, evento social, viaje... para tener contexto después.</div>
+    <textarea id="dayNote" rows="3" placeholder="Escribí algo si hoy fue distinto..." style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--line);color:var(--bone);border-radius:9px;padding:10px 11px;font-family:var(--body);font-size:13px;resize:vertical;"></textarea>
+  </div>
+
   <div class="tabtitle" style="margin-top:6px"><span class="ico">🎖</span><h2 style="font-size:14px">Puntaje de hoy</h2></div>
   <div class="score-box">
     <div><div class="lbl">Puntos del día</div><div class="bd" id="scBreak">+0 · x1.0</div></div>
@@ -292,6 +304,9 @@
   <button class="ghost" id="backupBtn" style="margin-top:10px">💾 Descargar backup (.json)</button>
   <button class="ghost" id="restoreBtn" style="margin-top:10px">📥 Restaurar backup (.json)</button>
   <input type="file" id="restoreFile" accept="application/json,.json" style="display:none">
+  <button class="ghost" id="driveConnectBtn" style="margin-top:10px">☁️ Conectar Google Drive</button>
+  <button class="ghost" id="driveBackupNowBtn" style="margin-top:10px">☁️ Backup a Drive ahora</button>
+  <div class="cd" id="driveStatus" style="text-align:center;margin-top:6px">—</div>
   <button class="ghost" id="resetBtn" style="margin-top:10px;color:var(--alert);border-color:var(--alert-deep)">Reiniciar campaña</button>
 </div>
 
@@ -345,6 +360,12 @@ const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo'
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
 const WEEK_TARGET_W=[null,103.5,103,102.5,102,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5];
 function weekTargetW(w){return WEEK_TARGET_W[w];}
+
+// ---------- backup a Google Drive (OAuth, drive.file) ----------
+const DRIVE_CLIENT_ID='677284218768-ar6vto7kie08i0sm9a4lpgshvq6v1vb8.apps.googleusercontent.com';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+let driveTokenClient=null, driveAccessToken=null, driveTokenExpiry=0;
+function driveEnabled(){return DRIVE_CLIENT_ID && DRIVE_CLIENT_ID.indexOf('PONÉ_')!==0;}
 
 const SPORTS=[
   {id:'padel',n:'Pádel 1 h',kcal:600},
@@ -451,9 +472,9 @@ function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return
 
 function freshDay(){
   const meals={}; MEALS.forEach(m=>meals[m.id]={items:{},saved:false,free:[]});
-  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},flags:{peso:false,rest:false,snack:false},closed:false};
+  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},flags:{peso:false,rest:false,snack:false},closed:false,note:''};
 }
-function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},lastWeekSeen:0};}
+function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lastWeekSeen:0};}
 let state=null, view='comida';
 
 let autoClosedInfo=null;
@@ -488,6 +509,9 @@ function normalize(){
   if(state.day&&!state.day.deportes)state.day.deportes={};
   if(state.day&&state.day.meals){for(const k in state.day.meals){if(!Array.isArray(state.day.meals[k].free))state.day.meals[k].free=[];}}
   if(!state.weights)state.weights={};
+  if(!state.measurements)state.measurements={cintura:{},cuello:{}};
+  if(!state.measurements.cintura)state.measurements.cintura={};
+  if(!state.measurements.cuello)state.measurements.cuello={};
 }
 
 // ---------- macros ----------
@@ -562,6 +586,7 @@ function buildSnapshot(s){
     desayuno:mealSummary('desayuno'),almuerzo:mealSummary('almuerzo'),
     merienda:mealSummary('merienda'),cena:mealSummary('cena'),extras:mealSummary('extras'),
     rest:!!d.flags.rest,snack:!!d.flags.snack,peso:!!d.flags.peso,
+    note:d.note||'',
     score:s.score,clean:s.clean
   };
 }
@@ -778,6 +803,13 @@ function renderDia(){
   document.getElementById('togPeso').classList.toggle('on',state.day.flags.peso);
   document.getElementById('closeBtn').style.display=state.day.closed?'none':'block';
   document.getElementById('reopenBtn').style.display=state.day.closed?'block':'none';
+  const noteEl=document.getElementById('dayNote');
+  if(noteEl){
+    noteEl.value=state.day.note||'';
+    noteEl.disabled=state.day.closed;
+    noteEl.oninput=()=>{state.day.note=noteEl.value;save();};
+  }
+  renderDriveStatus();
 }
 
 function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1)));const n=x/p;const s=n<=1?1:n<=2?2:n<=5?5:10;return s*p;}
@@ -851,6 +883,31 @@ function renderRangos(){
     chart.appendChild(elx(`<div class="cd" style="margin-top:10px;">Todavía no hay días registrados. Cerrá un día y va a empezar a aparecer acá.</div>`));
   }
   c.appendChild(chart);
+  // heatmap de racha
+  const heat=document.createElement('div');heat.className='card';
+  heat.appendChild(elx(`<div class="ct">Racha — calendario</div><div class="cd">Verde = día limpio · rojo = día con algún negativo · gris = sin datos / futuro.</div>`));
+  heat.appendChild(elx(`<div class="heatdow"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>`));
+  const grid=document.createElement('div');grid.className='heatgrid';
+  const todayIso=todayKey();
+  const lastWeek=Math.max(1,currentWeekNum()||1);
+  for(let w=1;w<=lastWeek;w++){
+    const ws=weekStart(w);
+    for(let i=0;i<7;i++){
+      const iso=isoAdd(ws,i);
+      let bg='transparent',border='1px solid var(--line)';
+      if(iso<START||iso>END||iso>todayIso){
+        // vacío / futuro / fuera de campaña
+      }else if(iso===todayIso&&!state.day.closed){
+        bg='transparent';border='1px dashed var(--brass)';
+      }else{
+        const e=(state.log||[]).find(x=>x.date===iso);
+        if(e)bg=e.clean?'var(--olive)':'var(--alert)';
+      }
+      grid.appendChild(elx(`<div class="heatcell" style="background:${bg};border:${border};" title="${iso}"></div>`));
+    }
+  }
+  heat.appendChild(grid);
+  c.appendChild(heat);
   // escalafón completo
   const ladder=document.createElement('div');ladder.className='card';
   ladder.appendChild(elx(`<div class="ct" style="margin-bottom:2px;">Escalafón</div>`));
@@ -968,6 +1025,45 @@ function renderPeso(){
   };
   inp.appendChild(btn);
   c.appendChild(inp);
+  // medidas (cintura / cuello)
+  const measCard=document.createElement('div');measCard.className='card';
+  measCard.appendChild(elx(`<div class="ct">Medidas</div><div class="cd">Cintura y cuello, en cm. Se guardan solas al salir del campo.</div>`));
+  const measRow=document.createElement('div');measRow.style.cssText='display:flex;gap:10px;margin-top:12px;';
+  function measDefault(key){
+    const obj=state.measurements[key]||{};
+    if(obj[todayKey()]!=null)return obj[todayKey()];
+    const ks=Object.keys(obj).sort();
+    return ks.length?obj[ks[ks.length-1]]:'';
+  }
+  [['cintura','Cintura (cm)'],['cuello','Cuello (cm)']].forEach(([key,lbl])=>{
+    const col=document.createElement('div');col.style.cssText='flex:1;display:flex;flex-direction:column;gap:6px;';
+    col.appendChild(elx(`<span class="wl" style="text-align:center;">${lbl}</span>`));
+    const mi=elx(`<input class="winput" type="number" inputmode="decimal" step="0.1" min="20" max="200" style="width:100%;font-size:22px;padding:9px 6px;" placeholder="—" value="${measDefault(key)}">`);
+    mi.onchange=()=>{
+      const v=parseFloat(mi.value);
+      if(isNaN(v)||v<20||v>200){toast('Poné un valor válido (20–200 cm)');return;}
+      state.measurements[key][todayKey()]=Math.round(v*10)/10;
+      save();renderPeso();toast(lbl+' guardada: '+state.measurements[key][todayKey()]+' cm');
+    };
+    col.appendChild(mi);
+    measRow.appendChild(col);
+  });
+  measCard.appendChild(measRow);
+  const measHistRows=[['cintura','Cintura actual','Δ desde el inicio'],['cuello','Cuello actual','Δ desde el inicio']]
+    .map(([key,lblCur,lblDelta])=>{
+      const obj=state.measurements[key]||{};
+      const ks=Object.keys(obj).sort();
+      if(!ks.length)return '';
+      const first=obj[ks[0]], curV=obj[ks[ks.length-1]];
+      const d=Math.round((curV-first)*10)/10;
+      const dcol=d<=0?'var(--olive)':'var(--alert)';
+      return `<div class="wstats" style="margin-top:12px;">
+        <div><span class="wl">${lblCur}</span><span class="wv">${curV} cm</span></div>
+        <div><span class="wl">${lblDelta}</span><span class="wv" style="color:${dcol}">${d>0?'+':''}${d.toFixed(1)}</span></div>
+      </div>`;
+    }).join('');
+  if(measHistRows)measCard.appendChild(elx(`<div>${measHistRows}</div>`));
+  c.appendChild(measCard);
   // stats
   const delta=(last!=null)?(last-startW):0;
   const toGoal=(last!=null)?(last-goalW):(startW-goalW);
@@ -980,6 +1076,39 @@ function renderPeso(){
     <div><span class="wl">Falta</span><span class="wv">${toGoal>0?toGoal.toFixed(1):'0'}</span></div>
   </div>`;
   c.appendChild(stats);
+  // proyección de fecha meta (ritmo real reciente, no el teórico)
+  const proj=document.createElement('div');proj.className='card';
+  proj.appendChild(elx(`<div class="ct">Proyección</div>`));
+  const winDays=14;
+  const spanTotal=entries.length?daysBetween(entries[0].date,entries[entries.length-1].date):0;
+  if(entries.length<2||spanTotal<3){
+    proj.appendChild(elx(`<div class="cd">Cargá al menos un par de pesadas con unos días de diferencia para ver la proyección.</div>`));
+  }else{
+    const lastE=entries[entries.length-1];
+    const winStartIso=isoAdd(lastE.date,-winDays);
+    let windowStart=entries[0];
+    for(const e of entries){if(e.date>=winStartIso){windowStart=e;break;}}
+    const wDays=daysBetween(windowStart.date,lastE.date);
+    if(wDays<=0||windowStart.date===lastE.date){
+      proj.appendChild(elx(`<div class="cd">Cargá al menos un par de pesadas con unos días de diferencia para ver la proyección.</div>`));
+    }else{
+      const rate=(lastE.kg-windowStart.kg)/wDays;
+      if(rate<0){
+        const daysToGoal=(lastE.kg-GOAL_W)/-rate;
+        const projectedDate=isoAdd(lastE.date,Math.round(daysToGoal));
+        const onTime=projectedDate<=END;
+        const pd=isoToDate(projectedDate);
+        const mesesLbl=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+        const niceDate=pd.getDate()+' '+mesesLbl[pd.getMonth()]+' '+pd.getFullYear();
+        proj.appendChild(elx(`<div class="cd">Basado en tu ritmo real de los últimos ${wDays} días (no en el ritmo teórico del plan).</div>`));
+        proj.appendChild(elx(`<div class="wv" style="font-family:var(--display);font-weight:700;font-size:26px;color:${onTime?'var(--olive)':'var(--alert)'};margin-top:10px;text-align:center;">${niceDate}</div>`));
+        if(!onTime)proj.appendChild(elx(`<div class="cd" style="color:var(--alert);margin-top:8px;">Más tarde que tu fecha límite (31/12) — a este ritmo no llegás, hay que ajustar.</div>`));
+      }else{
+        proj.appendChild(elx(`<div class="cd" style="color:var(--alert);">No estás bajando de peso en tu ritmo reciente — con estos datos no puedo proyectar una fecha. Revisá calorías y caminata.</div>`));
+      }
+    }
+  }
+  c.appendChild(proj);
   // chart
   const chart=document.createElement('div');chart.className='card';
   chart.appendChild(elx(`<div class="ct">Evolución</div>`));
@@ -1056,6 +1185,61 @@ function analyzeRange(ws,we){
 }
 function analyzeWeek(w){return Object.assign({w},analyzeRange(weekStart(w),weekEnd(w)));}
 function analyzeCumulative(w){return Object.assign({w},analyzeRange(weekStart(1),weekEnd(w)));}
+const MONTH_NAMES_ES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function monthsInCampaign(){
+  const endCap=todayKey()<END?todayKey():END;
+  const sd=isoToDate(START), ed=isoToDate(endCap<START?START:endCap);
+  const months=[];
+  let y=sd.getFullYear(), m=sd.getMonth();
+  const endY=ed.getFullYear(), endM=ed.getMonth();
+  while(y<endY||(y===endY&&m<=endM)){
+    const label=MONTH_NAMES_ES[m].charAt(0).toUpperCase()+MONTH_NAMES_ES[m].slice(1)+' '+y;
+    months.push({y,m,label});
+    m++;if(m>11){m=0;y++;}
+  }
+  return months;
+}
+function analyzeMonth(y,m){
+  const firstOfMonth=y+'-'+String(m+1).padStart(2,'0')+'-01';
+  const lastD=new Date(y,m+1,0);
+  const lastOfMonth=lastD.getFullYear()+'-'+String(lastD.getMonth()+1).padStart(2,'0')+'-'+String(lastD.getDate()).padStart(2,'0');
+  const endCap=todayKey()<END?todayKey():END;
+  const ws=firstOfMonth>START?firstOfMonth:START;
+  const we=lastOfMonth<endCap?lastOfMonth:endCap;
+  return Object.assign({y,m,ws,we},analyzeRange(ws,we));
+}
+function statsBlocksHTML(a){
+  const dcol=a.delta==null?'var(--muted)':(a.delta<=0?'var(--olive)':'var(--alert)');
+  const dtxt=a.delta==null?'—':((a.delta>0?'+':'')+a.delta.toFixed(1)+' kg');
+  return [
+    `<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">Días</span><span class="wv">${a.n}</span></div>
+      <div><span class="wl">Limpios</span><span class="wv" style="color:var(--olive)">${a.cleanDays}</span></div>
+      <div><span class="wl">Δ peso</span><span class="wv" style="color:${dcol}">${dtxt}</span></div>
+      <div><span class="wl">Puntos</span><span class="wv" style="color:${a.pts>=0?'var(--olive)':'var(--alert)'}">${a.pts>=0?'+':''}${a.pts}</span></div>
+    </div>`,
+    `<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">kcal/día</span><span class="wv">${a.avgKcal}</span></div>
+      <div><span class="wl">Prot/día</span><span class="wv" style="color:${a.avgProt>=PROT_MIN?'var(--olive)':'var(--brass)'}">${a.avgProt}g</span></div>
+      <div><span class="wl">Carb/día</span><span class="wv">${a.avgCarb}g</span></div>
+      <div><span class="wl">Grasa/día</span><span class="wv">${a.avgFat}g</span></div>
+    </div>`,
+    `<div class="wstats" style="margin-top:12px;">
+      <div><span class="wl">Déficit/día</span><span class="wv" style="color:${a.avgDef<0?'var(--olive)':(a.avgDef>0?'var(--alert)':'var(--muted)')}">${a.avgDef>0?'+':''}${a.avgDef}</span></div>
+      <div><span class="wl">Entrenos</span><span class="wv">${a.trainDone}/${a.trainExp}</span></div>
+      <div><span class="wl">Caminatas</span><span class="wv">${a.walkDone}/${a.walkExp}</span></div>
+      <div><span class="wl">Déf. total</span><span class="wv">${a.totDef}</span></div>
+    </div>`
+  ];
+}
+function detectPlateau(){
+  const cw=completedWeeks();
+  if(cw<2)return null;
+  const a1=analyzeWeek(cw-1), a2=analyzeWeek(cw);
+  if(a1.delta==null||a2.delta==null)return null;
+  if(a1.delta>-0.3&&a2.delta>-0.3)return{w1:cw-1,w2:cw,d1:a1.delta,d2:a2.delta};
+  return null;
+}
 function pesoObjetivoRow(w,actualW){
   const target=weekTargetW(w);
   if(target==null)return '';
@@ -1099,6 +1283,13 @@ function renderAnalisis(){
   const cur=currentWeekNum();
   const weeks=[];for(let w=cur;w>=1;w--)weeks.push(w);
   if(weeks.length===0){c.appendChild(elx(`<div class="card"><div class="cd">La primera semana cierra el ${weekEnd(1)}. Te aviso acá cuando pase.</div></div>`));return;}
+  const plateau=detectPlateau();
+  if(plateau){
+    const pcard=document.createElement('div');pcard.className='card';pcard.style.borderColor='var(--alert-deep)';
+    pcard.innerHTML=`<div class="ct" style="color:var(--alert)">⚠️ Estancamiento</div>
+      <div class="cd">Llevás 2 semanas sin bajar de peso: semana ${plateau.w1} (${plateau.d1>0?'+':''}${plateau.d1.toFixed(1)} kg) y semana ${plateau.w2} (${plateau.d2>0?'+':''}${plateau.d2.toFixed(1)} kg). Revisá que las porciones reales coincidan con lo cargado — arroz cocido y aceite son la fuga más común. Confirmá que la caminata y el déficit se cumplen TODOS los días, no solo en promedio. Y si venís firme hace rato, capaz corresponde un día de refeed planificado.</div>`;
+    c.appendChild(pcard);
+  }
   const intro=document.createElement('div');intro.className='card';
   intro.innerHTML=`<div class="ct">Resumen por semana</div><div class="cd">Cada semana (7 días desde el ${START}) tenés promedios de comida, cambio de peso y qué corregir. La semana en curso se actualiza sola.</div>`;
   c.appendChild(intro);
@@ -1130,6 +1321,11 @@ function renderAnalisis(){
       <div><span class="wl">Caminatas</span><span class="wv">${a.walkDone}/${a.walkExp}</span></div>
       <div><span class="wl">Déf. total</span><span class="wv">${a.totDef}</span></div>
     </div>`));
+    const daysWithNotes=(state.log||[]).filter(e=>e.date>=a.ws&&e.date<=a.we&&e.note);
+    if(daysWithNotes.length){
+      card.appendChild(elx(`<div class="grp-lbl" style="margin-top:14px;">Notas de la semana</div>`));
+      daysWithNotes.forEach(e=>{card.appendChild(elx(`<div class="cd">${fmtDate(e.date)}: ${e.note}</div>`));});
+    }
     card.appendChild(elx(`<div class="grp-lbl" style="margin-top:14px;">Qué mejorar</div>`));
     const ul=document.createElement('ul');ul.className='ranklist';ul.style.marginTop='2px';
     weekTips(a).forEach(tip=>{ul.appendChild(elx(`<li class="rankrow reached" style="display:block;padding:8px 4px;"><span style="color:var(--bone);font-size:12.5px;line-height:1.45;">• ${tip}</span></li>`));});
@@ -1171,6 +1367,20 @@ function renderAnalisis(){
     </div>`));
     c.appendChild(card);
   }
+
+  // ---------- Resumen mensual ----------
+  const monIntro=document.createElement('div');monIntro.className='card';
+  monIntro.innerHTML=`<div class="ct">🗓 Resumen mensual</div><div class="cd">Lo mismo que arriba, pero por mes calendario — para ver la tendencia gruesa.</div>`;
+  c.appendChild(monIntro);
+  const months=monthsInCampaign().slice().reverse();
+  months.forEach(({y,m,label})=>{
+    const a=analyzeMonth(y,m);
+    const card=document.createElement('div');card.className='card';
+    card.appendChild(elx(`<div class="ct">${label}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
+    if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados en este mes.</div>`));c.appendChild(card);return;}
+    statsBlocksHTML(a).forEach(html=>card.appendChild(elx(html)));
+    c.appendChild(card);
+  });
 }
 
 function switchView(v){
@@ -1211,6 +1421,7 @@ document.getElementById('closeBtn').onclick=async()=>{
   if(now!==prev)toast('¡ASCENSO! Ahora sos '+now);
   else if(s.clean&&state.streak>1)toast('Día limpio · racha '+state.streak+' · x'+mult(state.streak).toFixed(1));
   else toast('Día cerrado: '+(s.score>=0?'+':'')+s.score+' pts');
+  if(driveEnabled())driveBackupNow(true);
 };
 document.getElementById('reopenBtn').onclick=async()=>{
   const s=scoreDay();state.total=Math.max(0,state.total-s.score);state.streak=s.clean?Math.max(0,state.streak-1):state.streak;
@@ -1275,6 +1486,88 @@ function exportXLSX(){
 }
 document.getElementById('exportBtn').onclick=exportXLSX;
 
+// ---------- backup a Google Drive (OAuth) ----------
+function driveInitTokenClient(){
+  if(!driveEnabled())return;
+  if(typeof google==='undefined'||!google.accounts)return;
+  if(driveTokenClient)return;
+  try{
+    driveTokenClient=google.accounts.oauth2.initTokenClient({client_id:DRIVE_CLIENT_ID,scope:DRIVE_SCOPE,callback:()=>{}});
+  }catch(e){}
+}
+function driveEnsureToken(interactive){
+  return new Promise(resolve=>{
+    if(!driveEnabled()){resolve(false);return;}
+    driveInitTokenClient();
+    if(!driveTokenClient){resolve(false);return;}
+    if(driveAccessToken&&Date.now()<driveTokenExpiry-30000){resolve(true);return;}
+    try{
+      driveTokenClient.callback=(resp)=>{
+        if(resp&&resp.access_token){
+          driveAccessToken=resp.access_token;
+          driveTokenExpiry=Date.now()+((resp.expires_in||3300)*1000);
+          try{localStorage.setItem('moka:driveConnected','1');}catch(e){}
+          resolve(true);
+        }else resolve(false);
+      };
+      driveTokenClient.requestAccessToken({prompt:interactive?'consent':''});
+    }catch(e){resolve(false);}
+  });
+}
+async function driveBackupNow(silent){
+  if(!driveEnabled())return;
+  const ok=await driveEnsureToken(!silent);
+  if(!ok){if(!silent)toast('No se pudo conectar a Drive');return;}
+  const json=JSON.stringify(state);
+  const fileId=localStorage.getItem('moka:driveFileId');
+  try{
+    let res, data={};
+    if(fileId){
+      res=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=media',{
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'},
+        body:json
+      });
+    }else{
+      const boundary='moka-boundary-'+Date.now();
+      const metadata={name:'recompo-backup.json',mimeType:'application/json'};
+      const body='--'+boundary+'\r\n'+
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n'+
+        '--'+boundary+'\r\n'+
+        'Content-Type: application/json\r\n\r\n'+json+'\r\n'+
+        '--'+boundary+'--';
+      res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'multipart/related; boundary='+boundary},
+        body:body
+      });
+    }
+    if(!res.ok)throw new Error('drive upload failed');
+    data=await res.json().catch(()=>({}));
+    if(data&&data.id)localStorage.setItem('moka:driveFileId',data.id);
+    localStorage.setItem('moka:driveLastBackup',String(Date.now()));
+    if(!silent)toast('Backup subido a Drive ✔');
+    renderDriveStatus();
+  }catch(e){
+    if(!silent)toast('Error subiendo a Drive');
+  }
+}
+function driveStatusText(){
+  const t=localStorage.getItem('moka:driveLastBackup');
+  if(!t)return'Nunca';
+  const ms=+t, diffH=(Date.now()-ms)/3600000;
+  if(diffH<1)return'hace '+Math.max(1,Math.round(diffH*60))+'min';
+  if(diffH<24)return'hace '+Math.round(diffH)+'h';
+  const d=new Date(ms);
+  return d.getDate()+'/'+(d.getMonth()+1)+' a las '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function renderDriveStatus(){
+  const el=document.getElementById('driveStatus');if(!el)return;
+  let connected=false;
+  try{connected=localStorage.getItem('moka:driveConnected')==='1';}catch(e){}
+  el.textContent=driveEnabled()?('Drive: '+(connected?'conectado':'no conectado')+' · último backup: '+driveStatusText()):'Backup a Drive: falta configurar el Client ID';
+}
+
 // ---------- backup / restore (JSON) ----------
 function backupJSON(){
   try{
@@ -1288,6 +1581,19 @@ function backupJSON(){
   }catch(e){toast('No se pudo crear el backup');}
 }
 document.getElementById('backupBtn').onclick=backupJSON;
+
+// ---------- UI: Drive ----------
+(function(){
+  const connectBtn=document.getElementById('driveConnectBtn');
+  const backupNowBtn=document.getElementById('driveBackupNowBtn');
+  if(!driveEnabled()){
+    connectBtn.disabled=true;connectBtn.textContent='☁️ Backup a Drive: falta configurar el Client ID';
+    backupNowBtn.style.display='none';
+  }else{
+    connectBtn.onclick=()=>driveBackupNow(false);
+    backupNowBtn.onclick=()=>driveBackupNow(false);
+  }
+})();
 
 document.getElementById('restoreBtn').onclick=()=>document.getElementById('restoreFile').click();
 document.getElementById('restoreFile').onchange=function(ev){
@@ -1340,6 +1646,14 @@ function boot(){
   }
   if(!window.__recompoAC){window.__recompoAC=setInterval(autoCloseTick,30000);}
   autoCloseTick();
+  if(driveEnabled()){
+    try{
+      const connected=localStorage.getItem('moka:driveConnected')==='1';
+      const last=localStorage.getItem('moka:driveLastBackup');
+      const stale=!last||(Date.now()-(+last))>86400000;
+      if(connected&&stale)driveBackupNow(true);
+    }catch(e){}
+  }
 }
 (async()=>{state=await store.get()||defaults();state=Object.assign(defaults(),state);boot();})();
 </script>
