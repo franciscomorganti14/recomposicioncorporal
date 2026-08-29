@@ -1679,14 +1679,7 @@ function boot(){
   }
   if(!window.__recompoAC){window.__recompoAC=setInterval(autoCloseTick,30000);}
   autoCloseTick();
-  if(driveEnabled()){
-    try{
-      const connected=localStorage.getItem('moka:driveConnected')==='1';
-      const last=localStorage.getItem('moka:driveLastBackup');
-      const stale=!last||(Date.now()-(+last))>86400000;
-      if(connected&&stale)driveBackupNow(true);
-    }catch(e){}
-  }
+  renderDriveStatus();
 }
 (async()=>{state=await store.get()||defaults();state=Object.assign(defaults(),state);boot();})();
 </script>
