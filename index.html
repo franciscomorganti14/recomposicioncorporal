@@ -140,9 +140,12 @@
   .extotal span{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:2px;}
 
   /* heatmap racha */
-  .heatgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:10px;}
+  .heatdow{display:grid;grid-template-columns:28px repeat(7,1fr);gap:3px;margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;}
+  .heatrow{display:grid;grid-template-columns:28px repeat(7,1fr);gap:3px;margin-top:4px;align-items:center;}
+  .heatwk{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;padding-right:2px;}
   .heatcell{aspect-ratio:1;border-radius:3px;background:var(--line);}
-  .heatdow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:12px;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;}
+  .heatlegend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:11px;color:var(--muted);}
+  .heatlegend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
 
   /* rangos */
   .rkscale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;}
@@ -297,7 +300,6 @@
     <div><div class="lbl">Puntos del día</div><div class="bd" id="scBreak">+0 · x1.0</div></div>
     <div class="big pos" id="scBig">0</div>
   </div>
-  <div class="tog pgood" id="togPeso"><span class="b"></span><span>Pesada + reporte antes de las 10</span><span class="tp">+5</span></div>
   <button class="closebtn" id="closeBtn">Cerrar el día</button>
   <button class="ghost" id="reopenBtn" style="display:none">Reabrir el día</button>
   <button class="ghost" id="exportBtn" style="margin-top:16px">📊 Exportar todo a Excel</button>
@@ -355,6 +357,7 @@ const store={
 // ---------- config ----------
 const START='2026-08-24', END='2026-12-31';
 const START_W=104, GOAL_W=94.5;
+const PROJ_ADJUST_DAYS=12; // primeros días de una dieta nueva: baja fuerte de agua, no representa el ritmo real — se excluyen de la proyección
 const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
@@ -540,7 +543,6 @@ function scoreDay(){
   const mac=dayMacros(); let pos=0, autoNeg=0;
   const d=state.day, td=isTrainingDay(), wd=isWalkDay();
   // positivos
-  if(d.flags.peso)pos+=5;
   if(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos)pos+=10;
   if(d.meals.almuerzo.saved&&mealMacros('almuerzo').p>=50)pos+=5;
   if(d.meals.merienda.saved&&mealMacros('merienda').p>=12)pos+=5;
@@ -800,7 +802,6 @@ function renderDia(){
   document.getElementById('scBig').textContent=(s.score>=0?'+':'')+s.score;
   document.getElementById('scBig').className='big '+(s.score>=0?'pos':'neg');
   document.getElementById('scBreak').textContent=`+${s.pos} · x${s.m.toFixed(1)}${s.clean?'':' (racha rota)'} · −${s.neg}`;
-  document.getElementById('togPeso').classList.toggle('on',state.day.flags.peso);
   document.getElementById('closeBtn').style.display=state.day.closed?'none':'block';
   document.getElementById('reopenBtn').style.display=state.day.closed?'block':'none';
   const noteEl=document.getElementById('dayNote');
@@ -885,28 +886,36 @@ function renderRangos(){
   c.appendChild(chart);
   // heatmap de racha
   const heat=document.createElement('div');heat.className='card';
-  heat.appendChild(elx(`<div class="ct">Racha — calendario</div><div class="cd">Verde = día limpio · rojo = día con algún negativo · gris = sin datos / futuro.</div>`));
-  heat.appendChild(elx(`<div class="heatdow"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>`));
-  const grid=document.createElement('div');grid.className='heatgrid';
+  heat.appendChild(elx(`<div class="ct">Racha — calendario</div><div class="cd">Cada fila es una semana (Lun→Dom). Cada cuadrito es un día: tocalo o pasá el mouse para ver la fecha.</div>`));
+  heat.appendChild(elx(`<div class="heatdow"><span></span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>`));
   const todayIso=todayKey();
   const lastWeek=Math.max(1,currentWeekNum()||1);
   for(let w=1;w<=lastWeek;w++){
     const ws=weekStart(w);
+    const row=document.createElement('div');row.className='heatrow';
+    row.appendChild(elx(`<div class="heatwk">S${w}</div>`));
     for(let i=0;i<7;i++){
       const iso=isoAdd(ws,i);
-      let bg='transparent',border='1px solid var(--line)';
+      let bg='var(--line)',border='1px solid var(--line)',title=iso;
       if(iso<START||iso>END||iso>todayIso){
-        // vacío / futuro / fuera de campaña
+        title+=' · sin datos / futuro';
       }else if(iso===todayIso&&!state.day.closed){
-        bg='transparent';border='1px dashed var(--brass)';
+        bg='var(--panel-2)';border='1px dashed var(--brass)';title+=' · hoy (en curso)';
       }else{
         const e=(state.log||[]).find(x=>x.date===iso);
-        if(e)bg=e.clean?'var(--olive)':'var(--alert)';
+        if(e){bg=e.clean?'var(--olive)':'var(--alert)';title+=e.clean?' · día limpio':' · día con algún negativo';}
+        else title+=' · sin registrar';
       }
-      grid.appendChild(elx(`<div class="heatcell" style="background:${bg};border:${border};" title="${iso}"></div>`));
+      row.appendChild(elx(`<div class="heatcell" style="background:${bg};border:${border};" title="${title}"></div>`));
     }
+    heat.appendChild(row);
   }
-  heat.appendChild(grid);
+  heat.appendChild(elx(`<div class="heatlegend">
+    <span><span class="sw" style="background:var(--olive)"></span>día limpio (ningún negativo)</span>
+    <span><span class="sw" style="background:var(--alert)"></span>día con algún negativo</span>
+    <span><span class="sw" style="background:var(--panel-2);border:1px dashed var(--brass)"></span>hoy, todavía en curso</span>
+    <span><span class="sw" style="background:var(--line)"></span>sin registrar / futuro</span>
+  </div>`));
   c.appendChild(heat);
   // escalafón completo
   const ladder=document.createElement('div');ladder.className='card';
@@ -1076,35 +1085,41 @@ function renderPeso(){
     <div><span class="wl">Falta</span><span class="wv">${toGoal>0?toGoal.toFixed(1):'0'}</span></div>
   </div>`;
   c.appendChild(stats);
-  // proyección de fecha meta (ritmo real reciente, no el teórico)
+  // proyección de fecha meta (ritmo real reciente, no el teórico — descartando el ajuste inicial de agua)
   const proj=document.createElement('div');proj.className='card';
   proj.appendChild(elx(`<div class="ct">Proyección</div>`));
   const winDays=14;
+  const mesesLbl=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const niceDateFrom=iso=>{const pd=isoToDate(iso);return pd.getDate()+' '+mesesLbl[pd.getMonth()]+' '+pd.getFullYear();};
+  const adjEndIso=isoAdd(START,PROJ_ADJUST_DAYS);
   const spanTotal=entries.length?daysBetween(entries[0].date,entries[entries.length-1].date):0;
   if(entries.length<2||spanTotal<3){
     proj.appendChild(elx(`<div class="cd">Cargá al menos un par de pesadas con unos días de diferencia para ver la proyección.</div>`));
   }else{
     const lastE=entries[entries.length-1];
-    const winStartIso=isoAdd(lastE.date,-winDays);
-    let windowStart=entries[0];
-    for(const e of entries){if(e.date>=winStartIso){windowStart=e;break;}}
-    const wDays=daysBetween(windowStart.date,lastE.date);
-    if(wDays<=0||windowStart.date===lastE.date){
-      proj.appendChild(elx(`<div class="cd">Cargá al menos un par de pesadas con unos días de diferencia para ver la proyección.</div>`));
+    if(lastE.date<adjEndIso){
+      proj.appendChild(elx(`<div class="cd">Estás en los primeros ${PROJ_ADJUST_DAYS} días de la campaña. Esta etapa suele traer una baja fuerte de agua que no es el ritmo real — todavía no calculo proyección para no mentirte con una fecha optimista. Vuelvo a mostrarla a partir del ${niceDateFrom(adjEndIso)}.</div>`));
     }else{
-      const rate=(lastE.kg-windowStart.kg)/wDays;
-      if(rate<0){
-        const daysToGoal=(lastE.kg-GOAL_W)/-rate;
-        const projectedDate=isoAdd(lastE.date,Math.round(daysToGoal));
-        const onTime=projectedDate<=END;
-        const pd=isoToDate(projectedDate);
-        const mesesLbl=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-        const niceDate=pd.getDate()+' '+mesesLbl[pd.getMonth()]+' '+pd.getFullYear();
-        proj.appendChild(elx(`<div class="cd">Basado en tu ritmo real de los últimos ${wDays} días (no en el ritmo teórico del plan).</div>`));
-        proj.appendChild(elx(`<div class="wv" style="font-family:var(--display);font-weight:700;font-size:26px;color:${onTime?'var(--olive)':'var(--alert)'};margin-top:10px;text-align:center;">${niceDate}</div>`));
-        if(!onTime)proj.appendChild(elx(`<div class="cd" style="color:var(--alert);margin-top:8px;">Más tarde que tu fecha límite (31/12) — a este ritmo no llegás, hay que ajustar.</div>`));
+      const winStartIso=isoAdd(lastE.date,-winDays);
+      const floorIso=winStartIso>adjEndIso?winStartIso:adjEndIso; // nunca mirar antes del corte de ajuste inicial
+      let windowStart=null;
+      for(const e of entries){if(e.date>=floorIso){windowStart=e;break;}}
+      const wDays=windowStart?daysBetween(windowStart.date,lastE.date):0;
+      if(!windowStart||wDays<=0||windowStart.date===lastE.date){
+        proj.appendChild(elx(`<div class="cd">Ya pasó el período de ajuste inicial, pero todavía necesito un par de pesadas más (con días de diferencia) después del ${niceDateFrom(adjEndIso)} para calcular un ritmo confiable.</div>`));
       }else{
-        proj.appendChild(elx(`<div class="cd" style="color:var(--alert);">No estás bajando de peso en tu ritmo reciente — con estos datos no puedo proyectar una fecha. Revisá calorías y caminata.</div>`));
+        const rate=(lastE.kg-windowStart.kg)/wDays;
+        if(rate<0){
+          const daysToGoal=(lastE.kg-GOAL_W)/-rate;
+          const projectedDate=isoAdd(lastE.date,Math.round(daysToGoal));
+          const onTime=projectedDate<=END;
+          const niceDate=niceDateFrom(projectedDate);
+          proj.appendChild(elx(`<div class="cd">Basado en tu ritmo real de los últimos ${wDays} días (sin contar el ajuste inicial de agua de los primeros ${PROJ_ADJUST_DAYS} días).</div>`));
+          proj.appendChild(elx(`<div class="wv" style="font-family:var(--display);font-weight:700;font-size:26px;color:${onTime?'var(--olive)':'var(--alert)'};margin-top:10px;text-align:center;">${niceDate}</div>`));
+          if(!onTime)proj.appendChild(elx(`<div class="cd" style="color:var(--alert);margin-top:8px;">Más tarde que tu fecha límite (31/12) — a este ritmo no llegás, hay que ajustar.</div>`));
+        }else{
+          proj.appendChild(elx(`<div class="cd" style="color:var(--alert);">No estás bajando de peso en tu ritmo reciente (ya pasado el ajuste inicial) — con estos datos no puedo proyectar una fecha. Revisá calorías y caminata.</div>`));
+        }
       }
     }
   }
@@ -1396,12 +1411,6 @@ function switchView(v){
   window.scrollTo(0,0);
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
-
-['peso'].forEach(f=>{
-  document.getElementById('tog'+f.charAt(0).toUpperCase()+f.slice(1)).onclick=()=>{
-    if(state.day.closed)return;state.day.flags[f]=!state.day.flags[f];save();renderDia();refreshTop();
-  };
-});
 
 function finalizeDay(){
   // cierra state.day (asume que no está cerrado): puntúa, actualiza total/racha, guarda snapshot en el historial
