@@ -267,7 +267,7 @@
 
 <!-- CAMINAR -->
 <div class="view" id="v-caminar">
-  <div class="tabtitle"><span class="ico">🚶</span><h2>Caminar</h2><span class="hint">1 h · Lun a Sáb</span></div>
+  <div class="tabtitle"><span class="ico">🚶</span><h2>Caminar</h2><span class="hint">Lun–Sáb obligatoria · Dom suma</span></div>
   <div id="caminar"></div>
 </div>
 
@@ -453,6 +453,14 @@ const MEALS=[
   ]}
 ];
 const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
+// pre-marcado por defecto = el plan fijo. Arranca todo tildado y se DESTILDA lo que no comiste.
+const DEFAULT_ITEMS={
+  desayuno:{d_huevos:3,d_naranja:true,d_cafe:true},
+  almuerzo:{a_pollo:true,a_arroz:true,a_brocoli:true},
+  merienda:{m_huevos:2,m_naranja:true},
+  cena:{c_pollo:true,c_papa:true,c_brocoli:true,c_huevos:true},
+  extras:{}
+};
 
 const GYM={
   2:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra'],['Gemelos','45 kg + barra'],['Extensión de cuádriceps','45 kg'],['Curl femoral','50 kg']]},
@@ -470,12 +478,22 @@ function preLaunch(){return todayKey()<START;}
 function dow(){return new Date().getDay();}
 function isTrainingDay(){return[2,3,5,6].includes(dow());}
 function isWalkDay(){return[1,2,3,4,5,6].includes(dow());}
+// cinta 5,5 km/h · 5% inclinacion — formula ACSM de caminata → kcal por minuto segun peso
+const TREAD_SPEED=5.5, TREAD_INCLINE=5, DEF_TARGET=800;
+function treadmillKcalPerMin(kg){
+  const vMin=TREAD_SPEED*1000/60;              // m/min
+  const vo2=0.1*vMin+1.8*vMin*(TREAD_INCLINE/100)+3.5;  // ml O2/kg/min
+  return vo2*kg/200;                            // kcal/min
+}
+function pesoActual(){return weightOnOrBefore(todayKey())||START_W;}
+function cintaMin(){return (state.day&&state.day.cinta&&state.day.cinta.min)||0;}
+function cintaKcal(){return Math.round(treadmillKcalPerMin(pesoActual())*cintaMin());}
 function mult(streak){return Math.min(1.5,1+streak*0.1);}
 function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
 
 function freshDay(){
-  const meals={}; MEALS.forEach(m=>meals[m.id]={items:{},saved:false,free:[]});
-  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},flags:{peso:false,rest:false,snack:false},closed:false,note:''};
+  const meals={}; MEALS.forEach(m=>meals[m.id]={items:Object.assign({},DEFAULT_ITEMS[m.id]||{}),saved:false,free:[]});
+  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},cinta:{min:0},flags:{peso:false,rest:false,snack:false},closed:false,note:''};
 }
 function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lastWeekSeen:0};}
 let state=null, view='comida';
@@ -510,7 +528,15 @@ function normalize(){
     delete state.day.caminata.extra;
   }
   if(state.day&&!state.day.deportes)state.day.deportes={};
+  if(state.day&&!state.day.cinta)state.day.cinta={min:0};
   if(state.day&&state.day.meals){for(const k in state.day.meals){if(!Array.isArray(state.day.meals[k].free))state.day.meals[k].free=[];}}
+  // dia ya creado sin nada tocado → le sembramos el plan pre-marcado (nunca pisa algo ya elegido)
+  if(state.day&&state.day.meals){
+    for(const k in state.day.meals){
+      const meal=state.day.meals[k];
+      if(meal&&!meal.saved&&DEFAULT_ITEMS[k]&&Object.keys(meal.items||{}).length===0)meal.items=Object.assign({},DEFAULT_ITEMS[k]);
+    }
+  }
   if(!state.weights)state.weights={};
   if(!state.measurements)state.measurements={cintura:{},cuello:{}};
   if(!state.measurements.cintura)state.measurements.cintura={};
@@ -529,11 +555,17 @@ function dayMacros(){ // sólo comidas guardadas
   MEALS.forEach(m=>{if(state.day.meals[m.id].saved){const x=mealMacros(m.id);k+=x.k;p+=x.p;c+=x.c;f+=x.f;}});
   return{k,p,c,f};
 }
+function dayMacrosAll(){ // todo lo marcado, guardado o no — para proyectar el dia completo
+  let k=0,p=0,c=0,f=0;
+  MEALS.forEach(m=>{const x=mealMacros(m.id);k+=x.k;p+=x.p;c+=x.c;f+=x.f;});
+  return{k,p,c,f};
+}
 function burn(){
   let b=2015+200; // basal + NEAT base
   if(state.day.caminata.done)b+=250;
   b+=Math.round(250*((state.day.caminata.extraMin||0)/60));
   if(state.day.entreno.done)b+=450;
+  b+=cintaKcal();
   SPORTS.forEach(s=>{if(state.day.deportes&&state.day.deportes[s.id])b+=s.kcal;});
   return b;
 }
@@ -548,8 +580,9 @@ function scoreDay(){
   if(d.meals.merienda.saved&&mealMacros('merienda').p>=12)pos+=5;
   if(d.meals.cena.saved&&mealMacros('cena').p>=50)pos+=5;
   if(td&&d.entreno.done)pos+=25;
-  if(wd&&d.caminata.done)pos+=15;
+  if(d.caminata.done)pos+=15;                 // suma cualquier dia, domingo incluido
   pos+=5*((d.caminata.extraMin||0)/60);
+  pos+=5*(cintaMin()/60);                     // cinta: mismo criterio que caminata extra
   const def=mac.k-burn();   // ingerido − quemado → negativo = en déficit
   if(def<0&&mac.p>=PROT_MIN)pos+=20;
   if(mac.p>=PROT_OPT)pos+=5;
@@ -580,7 +613,7 @@ function buildSnapshot(s){
   const plan=(GYM[wd]?GYM[wd].t:'Descanso / caminata');
   return{
     date:d.date,dia:dias[wd],entreno_plan:plan,
-    entreno:!!d.entreno.done,caminata:!!d.caminata.done,caminata_extra_min:d.caminata.extraMin||0,
+    entreno:!!d.entreno.done,caminata:!!d.caminata.done,caminata_extra_min:d.caminata.extraMin||0,cinta_min:cintaMin(),cinta_kcal:cintaKcal(),
     deportes:SPORTS.filter(sp=>d.deportes&&d.deportes[sp.id]).map(sp=>sp.n).join(', ')||'—',
     ing_kcal:Math.round(s.mac.k),ing_prot:Math.round(s.mac.p),ing_carb:Math.round(s.mac.c||0),ing_grasa:Math.round(s.mac.f||0),
     peso_kg:(state.weights&&state.weights[d.date]!=null)?state.weights[d.date]:null,
@@ -724,7 +757,7 @@ function renderEntreno(){
   const g=GYM[dow()];
   document.getElementById('entHint').textContent=g?'1 hora · 4 ejercicios':'';
   if(!g){
-    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">${dow()===0?'😴':'🚶'}</div><div class="rt">${dow()===0?'Descanso total':'Hoy sin fierro'}</div><div class="cd" style="margin-top:8px">${dow()===0?'Domingo: ni fierro ni caminata. Recuperá.':'Lunes/Jueves: sólo la caminata. Andá a la pestaña Caminar.'}</div></div></div>`));
+    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">${dow()===0?'😴':'🚶'}</div><div class="rt">${dow()===0?'Descanso de fierro':'Hoy sin fierro'}</div><div class="cd" style="margin-top:8px">${dow()===0?'Domingo: sin fierro. La caminata no es obligatoria, pero si la hacés suma calorías y puntos igual — está habilitada en Caminar.':'Lunes/Jueves: sólo la caminata. Andá a la pestaña Caminar.'}</div></div></div>`));
   }else{
     const done=state.day.entreno.done;
     const card=document.createElement('div');card.className='card'+(done?' done':'');
@@ -756,18 +789,22 @@ function renderEntreno(){
 
 function renderCaminar(){
   const c=document.getElementById('caminar');c.innerHTML='';
-  if(dow()===0){c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">😴</div><div class="rt">Domingo · descanso</div></div></div>`));return;}
+  const sunday=dow()===0;
+  if(sunday){
+    c.appendChild(elx(`<div class="card"><div class="rest"><div class="re">\u{1F634}</div><div class="rt">Domingo · descanso de fierro</div><div class="cd" style="margin-top:8px">Caminar hoy no es obligatorio (no resta si no lo hacés), pero todo lo que camines suma calorías y puntos igual.</div></div></div>`));
+  }
   const done=state.day.caminata.done;
   const card=document.createElement('div');card.className='card'+(done?' done':'');
-  card.appendChild(elx(`<div class="ct">Caminata con la perrita</div><div class="cd">1 hora. Es el motor del déficit ahora que el fierro bajó a 4 días. No es opcional.</div>`));
-  const b=elx(`<button class="bigbtn ${done?'off':''}" style="margin-top:14px">${done?'✓ Caminata registrada':'Registrar caminata 1 h (+15)'}</button>`);
+  card.appendChild(elx(`<div class="ct">Caminata con la perrita</div><div class="cd">1 hora · +250 kcal. Es el motor del déficit ahora que el fierro bajó a 4 días.${sunday?' Hoy es opcional, pero si la hacés suma igual.':' No es opcional.'}</div>`));
+  const b=elx(`<button class="bigbtn ${done?'off':''}" style="margin-top:14px">${done?'\u2713 Caminata registrada':'Registrar caminata 1 h (+15)'}</button>`);
   b.onclick=()=>{if(state.day.closed)return;state.day.caminata.done=!state.day.caminata.done;save();renderCaminar();refreshTop();if(state.day.caminata.done)toast('Caminata registrada · +15');};
   card.appendChild(b);
   c.appendChild(card);
-  // caminata extra (en minutos, botones tipo comida)
+
+  // caminata extra (minutos, botones tipo comida) — habilitada todos los días
   const exMin=state.day.caminata.extraMin||0;
   const extra=document.createElement('div');extra.className='card';
-  extra.appendChild(elx(`<div class="ct">Caminata extra</div><div class="cd">Sumá minutos de más. Cada hora extra = +250 kcal · +5 pts. Tocá para acumular.</div>`));
+  extra.appendChild(elx(`<div class="ct">Caminata extra</div><div class="cd">Cualquier caminata de más, cualquier día. Cada hora = +250 kcal · +5 pts. Tocá para acumular.</div>`));
   extra.appendChild(elx(`<div class="extotal">${exMin} min <span>(${(exMin/60).toFixed(2)} h · +${Math.round(250*exMin/60)} kcal)</span></div>`));
   const chips=document.createElement('div');chips.className='chips';chips.style.justifyContent='center';
   [15,30,45,60].forEach(min=>{
@@ -784,6 +821,50 @@ function renderCaminar(){
     extra.appendChild(clr);
   }
   c.appendChild(extra);
+
+  // ---------- CINTA: cuánto caminar para cerrar el día en -800 ----------
+  const w=pesoActual();
+  const kmin=treadmillKcalPerMin(w);
+  const cMin=cintaMin(), cKcal=cintaKcal();
+  const macAll=dayMacrosAll();
+  const burnSinCinta=burn()-cKcal;                 // lo quemado sin contar la cinta ya cargada
+  const faltan=(macAll.k-burnSinCinta)+DEF_TARGET; // kcal de cinta necesarias para llegar a -800
+  const minNec=faltan>0?(faltan/kmin):0;
+  const mm=Math.floor(minNec), ss=Math.round((minNec-mm)*60);
+
+  const tm=document.createElement('div');tm.className='card'+(faltan<=0?' done':'');
+  tm.appendChild(elx(`<div class="ct">\u{1F3C3} Cinta · para cerrar en \u2212${DEF_TARGET}</div><div class="cd">${TREAD_SPEED} km/h · ${TREAD_INCLINE}% de inclinación. Con ${w} kg eso son \u2248 ${Math.round(kmin*60)} kcal/hora (${kmin.toFixed(1)} kcal/min). Cuenta TODO lo que tenés marcado en Comida, esté guardado o no.</div>`));
+  const res=document.createElement('div');res.className='extotal';
+  if(faltan<=0){
+    res.innerHTML=`0 min<span>Ya cerrás en \u2212${Math.abs(Math.round(macAll.k-burnSinCinta))} kcal sin cinta</span>`;
+  }else{
+    res.innerHTML=`${mm}${ss?(' min '+ss+' seg'):' min'}<span>de cinta · faltan ${Math.round(faltan)} kcal para \u2212${DEF_TARGET}</span>`;
+  }
+  tm.appendChild(res);
+  tm.appendChild(elx(`<div class="cd" style="text-align:center;margin-top:-4px">Proyectado del día: ${Math.round(macAll.k)} ingerido \u2212 ${Math.round(burnSinCinta)} quemado (sin cinta)</div>`));
+
+  tm.appendChild(elx(`<div class="grp-lbl" style="margin-top:16px;">Registrar cinta</div>`));
+  tm.appendChild(elx(`<div class="extotal" style="font-size:20px;margin:4px 0 10px">${cMin} min <span>(+${cKcal} kcal \u00b7 +${(5*cMin/60).toFixed(1)} pts)</span></div>`));
+  const cchips=document.createElement('div');cchips.className='chips';cchips.style.justifyContent='center';
+  [10,15,20,30,45,60].forEach(min=>{
+    const chip=elx(`<button class="chip"><span>+${min} min</span><span class="cm">+${Math.round(kmin*min)} kcal</span></button>`);
+    if(!state.day.closed)chip.onclick=()=>{state.day.cinta.min=cMin+min;save();renderCaminar();refreshTop();toast('+'+min+' min de cinta \u00b7 +'+Math.round(kmin*min)+' kcal');};
+    else chip.style.opacity=.55;
+    cchips.appendChild(chip);
+  });
+  tm.appendChild(cchips);
+  if(faltan>0&&!state.day.closed){
+    const exact=Math.ceil(minNec);
+    const bx=elx(`<button class="bigbtn" style="margin-top:12px">Cargar los ${exact} min que faltan</button>`);
+    bx.onclick=()=>{state.day.cinta.min=cMin+exact;save();renderCaminar();refreshTop();toast(exact+' min de cinta cargados');};
+    tm.appendChild(bx);
+  }
+  if(cMin>0&&!state.day.closed){
+    const clr2=elx(`<button class="ghost" style="margin-top:10px;">Borrar cinta</button>`);
+    clr2.onclick=()=>{state.day.cinta.min=0;save();renderCaminar();refreshTop();};
+    tm.appendChild(clr2);
+  }
+  c.appendChild(tm);
 }
 
 function renderDia(){
@@ -1404,6 +1485,7 @@ function switchView(v){
   document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
   if(v==='dia')renderDia();
+  if(v==='caminar')renderCaminar();
   if(v==='rangos')renderRangos();
   if(v==='peso')renderPeso();
   if(v==='motivacion')renderMotivacion();
@@ -1459,9 +1541,9 @@ function exportXLSX(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), 'Resumen');
 
   // Hoja 2: Historial diario
-  const rows=[['Fecha','Día','Entreno plan','Entrenó','Deporte','Caminata','Cam. extra (min)','Peso kg','Ingerido kcal','Proteína g','Carbos g','Grasas g','Quemado kcal','Déficit kcal','Restaurante','Picoteo','Pesada','Puntos','Día limpio']];
+  const rows=[['Fecha','Día','Entreno plan','Entrenó','Deporte','Caminata','Cam. extra (min)','Cinta (min)','Peso kg','Ingerido kcal','Proteína g','Carbos g','Grasas g','Quemado kcal','Déficit kcal','Restaurante','Picoteo','Pesada','Puntos','Día limpio']];
   state.log.forEach(e=>{
-    rows.push([e.date,e.dia||'—',e.entreno_plan||'—',sn(e.entreno),e.deportes||'—',sn(e.caminata),e.caminata_extra_min??(e.caminata_extra!=null?e.caminata_extra*60:'—'),
+    rows.push([e.date,e.dia||'—',e.entreno_plan||'—',sn(e.entreno),e.deportes||'—',sn(e.caminata),e.caminata_extra_min??(e.caminata_extra!=null?e.caminata_extra*60:'—'),e.cinta_min??'—',
       e.peso_kg??'—',e.ing_kcal??'—',e.ing_prot??'—',e.ing_carb??'—',e.ing_grasa??'—',e.quemado??'—',e.deficit??'—',
       e.rest?'Sí':'',e.snack?'Sí':'',e.peso?'Sí':'',e.score??'—',sn(e.clean)]);
   });
