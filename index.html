@@ -713,7 +713,8 @@ function scoreSnapshot(s,streakPrev){
   if(kcal>2500)neg+=25;                        // te pasaste de 2500 kcal en el día
   const clean=neg===0;
   const m=clean?mult(streakPrev||0):1;
-  return{pos,neg,clean,m,score:Math.round(pos*m)-neg,burn:burnV,def:Math.round(def)};
+  const posR=Math.round(pos*10)/10, negR=Math.round(neg*10)/10;
+  return{pos:posR,neg:negR,clean,m,score:Math.round(posR*m)-negR,burn:burnV,def:Math.round(def)};
 }
 function deportesKcal(){
   return SPORTS.reduce((a,sp)=>a+((state.day.deportes&&state.day.deportes[sp.id])?sp.kcal:0),0);
