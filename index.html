@@ -310,6 +310,7 @@
 <!-- DIA -->
 <div class="view" id="v-dia">
   <div class="tabtitle"><span class="ico">📊</span><h2>Balance del día</h2></div>
+  <div id="checklist"></div>
   <div class="macro">
     <div class="macro-row"><div class="ml2">Calorías ingeridas</div><div class="mv" id="diaKcal">0</div></div>
     <div class="macro-row"><div class="ml2">Proteína</div><div class="mv" id="diaProt">0 g</div></div>
@@ -398,6 +399,47 @@ const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo'
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
 const WEEK_TARGET_W=[null,103.5,103,102.5,102,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5];
 function weekTargetW(w){return WEEK_TARGET_W[w];}
+// peso objetivo interpolado de la pauta (-0,5 kg/semana) para cualquier fecha de la campaña
+function targetWeightForDate(iso){
+  if(iso<=START)return START_W;
+  let prevIso=START, prevW=START_W;
+  for(let w=1;w<WEEK_TARGET_W.length;w++){
+    const we=weekEnd(w), tw=WEEK_TARGET_W[w];
+    if(tw==null)continue;
+    if(iso<=we){
+      const span=daysBetween(prevIso,we);
+      if(span<=0)return tw;
+      return prevW+(tw-prevW)*(daysBetween(prevIso,iso)/span);
+    }
+    prevIso=we; prevW=tw;
+  }
+  return prevW; // más allá del último anclaje → objetivo final
+}
+// traduce los gramos de proteína faltantes a comida concreta (3 formas equivalentes)
+function protHint(faltan){
+  faltan=Math.round(faltan);
+  if(faltan<=0)return '';
+  const pollo=Math.round(faltan/0.31/10)*10;        // ~31 g prot / 100 g pollo
+  const huevos=Math.max(1,Math.round(faltan/6));    // ~6 g prot / huevo duro
+  const scoops=Math.max(1,Math.round(faltan/24));   // ~24 g prot / scoop de whey
+  return `${pollo} g de pollo o ${huevos} huevo${huevos>1?'s':''} o ${scoops} scoop${scoops>1?'s':''} de whey`;
+}
+// ritmo real reciente (kg/día) descartando el ajuste inicial de agua; null si no hay datos confiables
+function recentRate(){
+  const entries=weightEntries();
+  if(entries.length<2)return null;
+  const lastE=entries[entries.length-1];
+  const adjEndIso=isoAdd(START,PROJ_ADJUST_DAYS);
+  if(lastE.date<adjEndIso)return null;
+  const winStartIso=isoAdd(lastE.date,-14);
+  const floorIso=winStartIso>adjEndIso?winStartIso:adjEndIso;
+  let windowStart=null;
+  for(const e of entries){if(e.date>=floorIso){windowStart=e;break;}}
+  if(!windowStart||windowStart.date===lastE.date)return null;
+  const wDays=daysBetween(windowStart.date,lastE.date);
+  if(wDays<=0)return null;
+  return {rate:(lastE.kg-windowStart.kg)/wDays, lastE, wDays};
+}
 
 // ---------- backup a Google Drive (OAuth, drive.file) ----------
 const DRIVE_CLIENT_ID='677284218768-ar6vto7kie08i0sm9a4lpgshvq6v1vb8.apps.googleusercontent.com';
@@ -998,7 +1040,38 @@ function renderCaminar(){
   c.appendChild(tm);
 }
 
+function renderChecklist(){
+  const c=document.getElementById('checklist');if(!c)return;c.innerHTML='';
+  const s=scoreDay(), mac=s.mac, d=state.day;
+  const items=[];
+  items.push({ok:!!(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos),txt:'Desayuno con huevos'});
+  if(isTrainingDay())items.push({ok:!!d.entreno.done,txt:'Entreno de fuerza'});
+  if(isWalkDay())items.push({ok:!!d.caminata.done,txt:'Caminata de 1 h'});
+  const protOk=mac.p>=PROT_MIN, faltan=PROT_MIN-mac.p;
+  items.push({ok:protOk,txt:'Proteína ≥ '+PROT_MIN+' g',
+    sub:protOk?'':('Te faltan '+Math.round(faltan)+' g → '+protHint(faltan))});
+  items.push({ok:s.def<0,txt:'Cerrar en déficit'});
+  const total=items.length, done=items.filter(i=>i.ok).length;
+  const card=document.createElement('div');card.className='card';
+  card.appendChild(elx(`<div class="ct" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>Para cerrar limpio</span>
+    <span style="font-family:var(--mono);font-size:12px;color:${done===total?'var(--olive)':'var(--brass)'}">${done}/${total}</span></div>`));
+  const ul=document.createElement('div');ul.style.marginTop='8px';
+  items.forEach(it=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:flex-start;gap:9px;padding:7px 2px;';
+    row.innerHTML=`<span style="font-size:15px;line-height:1.2;">${it.ok?'✅':'⬜'}</span>`+
+      `<div style="flex:1;"><div style="color:${it.ok?'var(--olive)':'var(--bone)'};font-size:13.5px;">${it.txt}</div>`+
+      (it.sub?`<div class="cd" style="margin-top:3px;color:var(--brass);">${it.sub}</div>`:'')+`</div>`;
+    ul.appendChild(row);
+  });
+  card.appendChild(ul);
+  if(s.neg>0)card.appendChild(elx(`<div class="cd" style="margin-top:6px;color:var(--alert);">Ya tenés un negativo hoy: la racha se corta. Igual cerrá todo lo que puedas.</div>`));
+  else if(done===total)card.appendChild(elx(`<div class="cd" style="margin-top:6px;color:var(--olive);">Día limpio. Cerralo y sumá la racha.</div>`));
+  c.appendChild(card);
+}
 function renderDia(){
+  renderChecklist();
   const s=scoreDay();
   const dk=document.getElementById('diaKcal');dk.textContent=Math.round(s.mac.k)+' / '+KCAL_TARGET;
   dk.style.color=s.mac.k<=KCAL_TARGET?'var(--olive)':'var(--alert)';
@@ -1257,6 +1330,15 @@ function buildWeightSVG(entries,startW,goalW){
   // línea meta 94
   const yg=Y(goalW).toFixed(1);
   g+=`<line x1="${L}" y1="${yg}" x2="${W-R}" y2="${yg}" stroke="var(--brass)" stroke-width="1.4" stroke-dasharray="4 3"/>`;
+  // línea de la pauta objetivo (-0,5 kg/semana), muestreada por día del rango visible
+  {
+    const tp=[], n=Math.max(1,spanDays);
+    for(let i=0;i<=n;i++){
+      const iso=isoAt(i), tw=targetWeightForDate(iso);
+      if(tw>=lo&&tw<=hi)tp.push(X(iso).toFixed(1)+','+Y(tw).toFixed(1));
+    }
+    if(tp.length>=2)g+=`<polyline points="${tp.join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.75"/>`;
+  }
   // eje X: días del mes
   const baseY=T+plotH;
   if(realSpan===0){
@@ -1417,7 +1499,7 @@ function renderPeso(){
     chart.appendChild(elx(`<div class="cd" style="text-align:center;padding:22px 0;">Cargá tu primer peso y el gráfico aparece acá.</div>`));
   }else{
     chart.appendChild(buildWeightSVG(entries,startW,goalW));
-    chart.appendChild(elx(`<div class="wlegend"><span><i style="background:var(--olive)"></i>Peso diario</span><span><i style="background:var(--brass)"></i>Tendencia 7d</span><span><i class="dash"></i>Meta ${GOAL_W}</span></div>`));
+    chart.appendChild(elx(`<div class="wlegend"><span><i style="background:var(--olive)"></i>Peso diario</span><span><i style="background:var(--brass)"></i>Tendencia 7d</span><span><i style="background:var(--muted)"></i>Objetivo semanal</span><span><i class="dash"></i>Meta ${GOAL_W}</span></div>`));
   }
   c.appendChild(chart);
   // list
@@ -1591,6 +1673,22 @@ function renderAnalisis(){
       <div class="cd">Llevás 2 semanas sin bajar de peso: semana ${plateau.w1} (${plateau.d1>0?'+':''}${plateau.d1.toFixed(1)} kg) y semana ${plateau.w2} (${plateau.d2>0?'+':''}${plateau.d2.toFixed(1)} kg). Revisá que las porciones reales coincidan con lo cargado — arroz cocido y aceite son la fuga más común. Confirmá que la caminata y el déficit se cumplen TODOS los días, no solo en promedio. Y si venís firme hace rato, capaz corresponde un día de refeed planificado.</div>`;
     c.appendChild(pcard);
   }
+  // ---------- Proyección de peso al 31/12 (ritmo real, a fecha fija) ----------
+  const rr=recentRate();
+  const projCard=document.createElement('div');projCard.className='card';
+  if(rr&&rr.rate<0){
+    const proyW=Math.round((rr.lastE.kg+rr.rate*daysBetween(rr.lastE.date,END))*10)/10;
+    const onTime=proyW<=GOAL_W;
+    const gap=Math.round(Math.abs(GOAL_W-proyW)*10)/10;
+    projCard.innerHTML=`<div class="ct">🎯 Proyección al 31/12</div>`+
+      `<div class="cd">A tu ritmo real de los últimos ${rr.wDays} días (sin contar el ajuste inicial de agua), a este ritmo cerrás la campaña acá.</div>`+
+      `<div class="wv" style="font-family:var(--display);font-weight:700;font-size:30px;color:${onTime?'var(--olive)':'var(--alert)'};margin-top:10px;text-align:center;">${proyW} kg</div>`+
+      `<div class="cd" style="text-align:center;margin-top:4px;">meta ${GOAL_W} kg · ${onTime?('adelantado '+gap+' kg'):('atrasado '+gap+' kg — hay que ajustar')}</div>`;
+  }else{
+    projCard.innerHTML=`<div class="ct">🎯 Proyección al 31/12</div>`+
+      `<div class="cd">Cargá un par de pesadas más (pasado el ajuste inicial de agua de los primeros ${PROJ_ADJUST_DAYS} días) y acá te muestro a qué peso llegás el 31/12 a tu ritmo actual.</div>`;
+  }
+  c.appendChild(projCard);
   const intro=document.createElement('div');intro.className='card';
   intro.innerHTML=`<div class="ct">Resumen por semana</div><div class="cd">Cada semana (7 días desde el ${START}) tenés promedios de comida, cambio de peso y qué corregir. La semana en curso se actualiza sola.</div>`;
   c.appendChild(intro);
