@@ -189,6 +189,36 @@
   .wlist .wk{font-family:var(--mono);font-weight:700;color:var(--bone);width:76px;text-align:right;}
   .wlist .wdl{font-family:var(--mono);font-size:12px;width:56px;text-align:right;}
 
+  /* fierro: fila de ejercicio con peso y doble progresión */
+  .exlist li.exrow{display:block;padding:11px 0;}
+  .exhead{display:flex;align-items:baseline;gap:8px;}
+  .exhead .exn{flex:1;min-width:0;}
+  .exctl{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap;}
+  .exkg{width:74px;flex:none;background:var(--bg);border:1px solid var(--olive-deep);color:var(--bone);font-family:var(--mono);font-weight:700;font-size:16px;padding:8px 6px;border-radius:8px;text-align:center;-moz-appearance:textfield;}
+  .exkg::-webkit-outer-spin-button,.exkg::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .exkg:focus{outline:none;border-color:var(--olive);}
+  .exu{font-family:var(--mono);color:var(--muted);font-size:12px;flex:none;margin-right:2px;}
+  .exok,.exno{flex:1;min-width:82px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:8px;padding:9px 6px;font-family:var(--display);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
+  .exok.on{background:rgba(168,189,90,.16);border-color:var(--olive);color:var(--olive);}
+  .exno.on{background:rgba(209,80,63,.12);border-color:var(--alert);color:var(--alert);}
+  .exnext{font-family:var(--mono);font-size:11px;color:var(--olive);margin-top:7px;}
+  .exnext.hold{color:var(--brass);}
+
+  /* peso: fecha de la pesada */
+  .wdate{display:flex;align-items:center;justify-content:center;gap:9px;margin:2px 0 12px;}
+  .wdate .ffi{flex:none;width:auto;font-size:14px;padding:8px 10px;}
+
+  /* editor de días pasados */
+  .edrow{display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid var(--line);}
+  .edrow .edd{font-family:var(--mono);font-size:12px;color:var(--muted);width:56px;flex:none;}
+  .edrow .edm{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px;color:var(--bone);}
+  .edrow .eds{font-family:var(--mono);font-weight:700;font-size:13px;width:46px;text-align:right;flex:none;}
+  .edrow .edb{flex:none;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:7px;padding:7px 9px;font-size:11px;cursor:pointer;font-family:var(--display);letter-spacing:.06em;text-transform:uppercase;}
+  .edpanel{background:var(--bg);border:1px dashed var(--olive-deep);border-radius:10px;padding:12px;margin:4px 0 10px;}
+  .edgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .edf{display:flex;flex-direction:column;gap:4px;}
+  .edf span{font-family:var(--display);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+
   /* comida libre (calculador) */
   .freefood{margin-top:6px;}
   .fflist{margin-bottom:10px;}
@@ -302,6 +332,11 @@
   </div>
   <button class="closebtn" id="closeBtn">Cerrar el día</button>
   <button class="ghost" id="reopenBtn" style="display:none">Reabrir el día</button>
+  <div class="card" id="pastCard" style="margin-top:16px">
+    <div class="ct">Corregir días pasados</div>
+    <div class="cd">Si un día quedó mal cargado o se cerró solo, arreglalo acá. Al guardar se recalculan el puntaje, la racha y el total de toda la campaña.</div>
+    <div id="pastList"></div>
+  </div>
   <button class="ghost" id="exportBtn" style="margin-top:16px">📊 Exportar todo a Excel</button>
   <button class="ghost" id="backupBtn" style="margin-top:10px">💾 Descargar backup (.json)</button>
   <button class="ghost" id="restoreBtn" style="margin-top:10px">📥 Restaurar backup (.json)</button>
@@ -480,22 +515,49 @@ function isTrainingDay(){return[2,3,5,6].includes(dow());}
 function isWalkDay(){return[1,2,3,4,5,6].includes(dow());}
 // cinta 5,5 km/h · 5% inclinacion — formula ACSM de caminata → kcal por minuto segun peso
 const TREAD_SPEED=5.5, TREAD_INCLINE=5, DEF_TARGET=800;
+// NETO: le restamos el componente de reposo (3.5) porque el basal del dia ya se cuenta aparte.
+// Si sumaramos el bruto estariamos contando dos veces el metabolismo de esos minutos.
 function treadmillKcalPerMin(kg){
-  const vMin=TREAD_SPEED*1000/60;              // m/min
-  const vo2=0.1*vMin+1.8*vMin*(TREAD_INCLINE/100)+3.5;  // ml O2/kg/min
-  return vo2*kg/200;                            // kcal/min
+  const vMin=TREAD_SPEED*1000/60;                        // m/min
+  const vo2=0.1*vMin+1.8*vMin*(TREAD_INCLINE/100)+3.5;   // ml O2/kg/min (bruto)
+  return (vo2-3.5)*kg/200;                               // kcal/min netas
 }
+// basal calibrado: 2015 kcal a 104 kg, con la pendiente de Mifflin-St Jeor (10 kcal por kg).
+// Baja solo a medida que baja el peso — a 94,5 kg da 1920.
+const BMR_BASE=2015, BMR_BASE_W=104, NEAT=200;
+function basalFor(kg){return Math.round(BMR_BASE+10*((kg||BMR_BASE_W)-BMR_BASE_W));}
 function pesoActual(){return weightOnOrBefore(todayKey())||START_W;}
 function cintaMin(){return (state.day&&state.day.cinta&&state.day.cinta.min)||0;}
 function cintaKcal(){return Math.round(treadmillKcalPerMin(pesoActual())*cintaMin());}
 function mult(streak){return Math.min(1.5,1+streak*0.1);}
+
+// ---------- fierro: pesos vigentes por ejercicio (persistentes) ----------
+const LIFT_STEP=2.5;
+function liftDefaultKg(txt){const m=String(txt||'').match(/(\d+(?:[.,]\d+)?)/);return m?parseFloat(m[1].replace(',','.')):null;}
+function liftKg(name,fallbackTxt){
+  if(state.lifts&&state.lifts[name]!=null)return state.lifts[name];
+  return liftDefaultKg(fallbackTxt);
+}
+function liftSetKg(name,kg){if(!state.lifts)state.lifts={};state.lifts[name]=kg;}
+// al cerrar el día aplica la doble progresión: completaste todas las reps → +2,5 kg la próxima
+function applyLiftProgression(){
+  const dl=state.day.lifts||{};
+  let subieron=[];
+  for(const name in dl){
+    const e=dl[name];
+    if(!e||e.kg==null)continue;
+    if(e.ok===true){liftSetKg(name,Math.round((e.kg+LIFT_STEP)*10)/10);subieron.push(name);}
+    else if(e.ok===false)liftSetKg(name,e.kg);
+  }
+  return subieron;
+}
 function currentWeek(){const d=new Date(),j=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
 
 function freshDay(){
   const meals={}; MEALS.forEach(m=>meals[m.id]={items:Object.assign({},DEFAULT_ITEMS[m.id]||{}),saved:false,free:[]});
-  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},cinta:{min:0},flags:{peso:false,rest:false,snack:false},closed:false,note:''};
+  return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},cinta:{min:0},lifts:{},flags:{rest:false,snack:false},closed:false,note:''};
 }
-function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lastWeekSeen:0};}
+function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lifts:{},lastWeekSeen:0};}
 let state=null, view='comida';
 
 let autoClosedInfo=null;
@@ -529,6 +591,8 @@ function normalize(){
   }
   if(state.day&&!state.day.deportes)state.day.deportes={};
   if(state.day&&!state.day.cinta)state.day.cinta={min:0};
+  if(state.day&&!state.day.lifts)state.day.lifts={};
+  if(!state.lifts)state.lifts={};
   if(state.day&&state.day.meals){for(const k in state.day.meals){if(!Array.isArray(state.day.meals[k].free))state.day.meals[k].free=[];}}
   // dia ya creado sin nada tocado → le sembramos el plan pre-marcado (nunca pisa algo ya elegido)
   if(state.day&&state.day.meals){
@@ -561,7 +625,7 @@ function dayMacrosAll(){ // todo lo marcado, guardado o no — para proyectar el
   return{k,p,c,f};
 }
 function burn(){
-  let b=2015+200; // basal + NEAT base
+  let b=basalFor(pesoActual())+NEAT; // basal segun peso de hoy + NEAT base
   if(state.day.caminata.done)b+=250;
   b+=Math.round(250*((state.day.caminata.extraMin||0)/60));
   if(state.day.entreno.done)b+=450;
@@ -571,32 +635,76 @@ function burn(){
 }
 
 // ---------- scoring ----------
-function scoreDay(){
-  const mac=dayMacros(); let pos=0, autoNeg=0;
-  const d=state.day, td=isTrainingDay(), wd=isWalkDay();
-  // positivos
-  if(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos)pos+=10;
-  if(d.meals.almuerzo.saved&&mealMacros('almuerzo').p>=50)pos+=5;
-  if(d.meals.merienda.saved&&mealMacros('merienda').p>=12)pos+=5;
-  if(d.meals.cena.saved&&mealMacros('cena').p>=50)pos+=5;
-  if(td&&d.entreno.done)pos+=25;
-  if(d.caminata.done)pos+=15;                 // suma cualquier dia, domingo incluido
-  pos+=5*((d.caminata.extraMin||0)/60);
-  pos+=5*(cintaMin()/60);                     // cinta: mismo criterio que caminata extra
-  const def=mac.k-burn();   // ingerido − quemado → negativo = en déficit
-  if(def<0&&mac.p>=PROT_MIN)pos+=20;
-  if(mac.p>=PROT_OPT)pos+=5;
-  // negativos automáticos (por ausencia)
-  if(!d.meals.desayuno.saved||!d.meals.desayuno.items.d_huevos)autoNeg+=15; // salteó/incompleto
-  if(td&&!d.entreno.done)autoNeg+=30;
-  if(wd&&!d.caminata.done)autoNeg+=15;
-  if(mac.p<PROT_MIN)autoNeg+=15;
-  if(mac.k>2500)autoNeg+=25; // te pasaste de 2500 kcal en el día
-  const neg=autoNeg;
+// UN SOLO motor de puntaje: lo usan tanto el día en curso como el historial editable.
+function burnFromSnap(s){
+  const w=(s.peso_kg!=null?s.peso_kg:weightOnOrBefore(s.date))||START_W;
+  let b=basalFor(w)+NEAT;
+  if(s.caminata)b+=250;
+  b+=Math.round(250*((s.caminata_extra_min||0)/60));
+  if(s.entreno)b+=450;
+  b+=Math.round(treadmillKcalPerMin(w)*(s.cinta_min||0));
+  b+=(s.deportes_kcal||0);
+  return b;
+}
+function scoreSnapshot(s,streakPrev){
+  const dd=isoToDate(s.date).getDay();
+  const td=[2,3,5,6].includes(dd), wd=[1,2,3,4,5,6].includes(dd);
+  let pos=0, neg=0;
+  // dias viejos no guardaban el flag: lo inferimos del detalle de items
+  const desOk=(s.desayuno_huevos!=null)?!!s.desayuno_huevos
+    :!!(s.desayuno&&s.desayuno.saved&&/huevo/i.test(s.desayuno.items||''));
+  if(desOk)pos+=10; else neg+=15;
+  if(s.almuerzo&&s.almuerzo.saved&&(s.almuerzo.prot||0)>=50)pos+=5;
+  if(s.merienda&&s.merienda.saved&&(s.merienda.prot||0)>=12)pos+=5;
+  if(s.cena&&s.cena.saved&&(s.cena.prot||0)>=50)pos+=5;
+  if(td&&s.entreno)pos+=25;
+  if(s.caminata)pos+=15;                       // suma cualquier dia, domingo incluido
+  pos+=5*((s.caminata_extra_min||0)/60);
+  pos+=5*((s.cinta_min||0)/60);
+  const kcal=s.ing_kcal||0, prot=s.ing_prot||0;
+  const burnV=burnFromSnap(s), def=kcal-burnV; // ingerido − quemado → negativo = en déficit
+  if(def<0&&prot>=PROT_MIN)pos+=20;
+  if(prot>=PROT_OPT)pos+=5;
+  if(td&&!s.entreno)neg+=30;
+  if(wd&&!s.caminata)neg+=15;
+  if(prot<PROT_MIN)neg+=15;
+  if(kcal>2500)neg+=25;                        // te pasaste de 2500 kcal en el día
   const clean=neg===0;
-  const m=clean?mult(state.streak):1;
-  const score=Math.round(pos*m)-neg;
-  return{pos,neg,clean,m,score,def,mac};
+  const m=clean?mult(streakPrev||0):1;
+  return{pos,neg,clean,m,score:Math.round(pos*m)-neg,burn:burnV,def:Math.round(def)};
+}
+function deportesKcal(){
+  return SPORTS.reduce((a,sp)=>a+((state.day.deportes&&state.day.deportes[sp.id])?sp.kcal:0),0);
+}
+function daySnapForScore(){
+  const d=state.day, mac=dayMacros();
+  return{date:d.date,ing_kcal:mac.k,ing_prot:mac.p,
+    entreno:!!d.entreno.done,caminata:!!d.caminata.done,
+    caminata_extra_min:d.caminata.extraMin||0,cinta_min:cintaMin(),
+    deportes_kcal:deportesKcal(),peso_kg:pesoActual(),
+    desayuno_huevos:!!(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos),
+    almuerzo:{saved:d.meals.almuerzo.saved,prot:mealMacros('almuerzo').p},
+    merienda:{saved:d.meals.merienda.saved,prot:mealMacros('merienda').p},
+    cena:{saved:d.meals.cena.saved,prot:mealMacros('cena').p}};
+}
+function scoreDay(){
+  const mac=dayMacros();
+  const r=scoreSnapshot(daySnapForScore(),state.streak);
+  return{pos:r.pos,neg:r.neg,clean:r.clean,m:r.m,score:r.score,def:r.def,mac};
+}
+// recalcula TODO el historial de cero: repuntúa cada día en orden y regenera total y racha.
+// Se llama al editar o borrar un día pasado, para que la racha y el total queden consistentes.
+function recalcAll(){
+  const log=(state.log||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+  let total=0, streak=0;
+  log.forEach(sn=>{
+    const r=scoreSnapshot(sn,streak);
+    sn.score=r.score; sn.clean=r.clean; sn.quemado=r.burn; sn.deficit=r.def;
+    total=Math.max(0,total+r.score);
+    streak=r.clean?streak+1:0;
+  });
+  state.log=log; state.total=total; state.streak=streak;
+  return{total,streak,dias:log.length};
 }
 
 // ---------- snapshot (para historial exportable) ----------
@@ -614,13 +722,14 @@ function buildSnapshot(s){
   return{
     date:d.date,dia:dias[wd],entreno_plan:plan,
     entreno:!!d.entreno.done,caminata:!!d.caminata.done,caminata_extra_min:d.caminata.extraMin||0,cinta_min:cintaMin(),cinta_kcal:cintaKcal(),
+    deportes_kcal:deportesKcal(),desayuno_huevos:!!(d.meals.desayuno.saved&&d.meals.desayuno.items.d_huevos),
     deportes:SPORTS.filter(sp=>d.deportes&&d.deportes[sp.id]).map(sp=>sp.n).join(', ')||'—',
     ing_kcal:Math.round(s.mac.k),ing_prot:Math.round(s.mac.p),ing_carb:Math.round(s.mac.c||0),ing_grasa:Math.round(s.mac.f||0),
     peso_kg:(state.weights&&state.weights[d.date]!=null)?state.weights[d.date]:null,
     quemado:burn(),deficit:Math.round(s.def),
     desayuno:mealSummary('desayuno'),almuerzo:mealSummary('almuerzo'),
     merienda:mealSummary('merienda'),cena:mealSummary('cena'),extras:mealSummary('extras'),
-    rest:!!d.flags.rest,snack:!!d.flags.snack,peso:!!d.flags.peso,
+    rest:!!d.flags.rest,snack:!!d.flags.snack,
     note:d.note||'',
     score:s.score,clean:s.clean
   };
@@ -763,15 +872,37 @@ function renderEntreno(){
     const card=document.createElement('div');card.className='card'+(done?' done':'');
     card.appendChild(elx(`<div class="ct">${g.t}</div><div class="cd">Doble progresión: completás todas las reps con buena forma → +2,5 kg la próxima. Anotá tus reps.</div>`));
     const ul=document.createElement('ul');ul.className='exlist';
-    g.ex.forEach((e,i)=>ul.appendChild(elx(`<li><span class="exn">${i+1}. ${e[0]}</span><span class="w">${e[1]}</span><span class="r">${e[2]||'4×10'}</span></li>`)));
+    g.ex.forEach((e,i)=>{
+      const name=e[0], reps=e[2]||'4×10';
+      if(!state.day.lifts[name])state.day.lifts[name]={kg:liftKg(name,e[1]),ok:null};
+      const st=state.day.lifts[name];
+      const li=document.createElement('li');li.className='exrow';
+      li.appendChild(elx(`<div class="exhead"><span class="exn">${i+1}. ${name}</span><span class="r">${reps}</span></div>`));
+      const row=document.createElement('div');row.className='exctl';
+      const kgIn=elx(`<input class="exkg" type="number" inputmode="decimal" step="${LIFT_STEP}" min="0" max="400" placeholder="kg" value="${st.kg!=null?st.kg:''}">`);
+      kgIn.onchange=()=>{const v=parseFloat(kgIn.value);st.kg=isNaN(v)?null:v;if(!isNaN(v))liftSetKg(name,v);save();};
+      row.appendChild(kgIn);row.appendChild(elx(`<span class="exu">kg</span>`));
+      const ok=elx(`<button class="exok ${st.ok===true?'on':''}">✓ todas</button>`);
+      const no=elx(`<button class="exno ${st.ok===false?'on':''}">✗ no llegué</button>`);
+      if(!state.day.closed){
+        ok.onclick=()=>{st.ok=st.ok===true?null:true;save();renderEntreno();};
+        no.onclick=()=>{st.ok=st.ok===false?null:false;save();renderEntreno();};
+      }else{ok.style.opacity=.5;no.style.opacity=.5;}
+      row.appendChild(ok);row.appendChild(no);
+      li.appendChild(row);
+      if(st.ok===true&&st.kg!=null)li.appendChild(elx(`<div class="exnext">Próxima sesión: ${Math.round((st.kg+LIFT_STEP)*10)/10} kg</div>`));
+      else if(st.ok===false&&st.kg!=null)li.appendChild(elx(`<div class="exnext hold">Próxima sesión: repetís ${st.kg} kg</div>`));
+      ul.appendChild(li);
+    });
     card.appendChild(ul);
+    card.appendChild(elx(`<div class="cd">Marcá ✓ en los ejercicios donde completaste todas las reps con buena forma. Al cerrar el día la app te sube esos +${LIFT_STEP} kg sola para la próxima.</div>`));
     const b=elx(`<button class="bigbtn ${done?'off':''}">${done?'✓ Entreno registrado':'Registrar entreno completo (+25)'}</button>`);
     b.onclick=()=>{if(state.day.closed)return;state.day.entreno.done=!state.day.entreno.done;save();renderEntreno();refreshTop();if(state.day.entreno.done)toast('Entreno registrado · +25');};
     card.appendChild(b);
     c.appendChild(card);
   }
-  // cardio / deporte (todos los días menos domingo)
-  if(dow()!==0){
+  // cardio / deporte — habilitado todos los días, domingo incluido
+  {
     const dep=document.createElement('div');dep.className='card';
     dep.appendChild(elx(`<div class="ct">Cardio / deporte (1 h)</div><div class="cd">Si jugaste algo, sumalo al déficit. Estimado para ~100 kg; son valores aproximados.</div>`));
     const chips=document.createElement('div');chips.className='chips';
@@ -891,7 +1022,73 @@ function renderDia(){
     noteEl.disabled=state.day.closed;
     noteEl.oninput=()=>{state.day.note=noteEl.value;save();};
   }
+  renderPast();
   renderDriveStatus();
+}
+
+// ---------- editor de días pasados ----------
+let pastOpen=null;
+function renderPast(){
+  const c=document.getElementById('pastList');if(!c)return;c.innerHTML='';
+  const log=(state.log||[]).slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,21);
+  if(!log.length){c.appendChild(elx(`<div class="cd" style="margin-top:10px">Todavía no cerraste ningún día.</div>`));return;}
+  log.forEach(sn=>{
+    const row=document.createElement('div');row.className='edrow';
+    row.appendChild(elx(`<span class="edd">${fmtDate(sn.date)}</span>`));
+    row.appendChild(elx(`<span class="edm">${Math.round(sn.ing_kcal||0)} kcal · ${Math.round(sn.ing_prot||0)}p</span>`));
+    row.appendChild(elx(`<span class="eds" style="color:${(sn.score||0)>=0?'var(--olive)':'var(--alert)'}">${(sn.score||0)>=0?'+':''}${sn.score||0}</span>`));
+    const b=elx(`<button class="edb">${pastOpen===sn.date?'cerrar':'editar'}</button>`);
+    b.onclick=()=>{pastOpen=(pastOpen===sn.date)?null:sn.date;renderPast();};
+    row.appendChild(b);
+    c.appendChild(row);
+    if(pastOpen!==sn.date)return;
+    const pan=document.createElement('div');pan.className='edpanel';
+    const grid=document.createElement('div');grid.className='edgrid';
+    const flds=[['ing_kcal','kcal'],['ing_prot','proteína g'],['ing_carb','carbos g'],['ing_grasa','grasas g'],
+                ['caminata_extra_min','cam. extra min'],['cinta_min','cinta min']];
+    const inputs={};
+    flds.forEach(([k,lbl])=>{
+      const f=document.createElement('div');f.className='edf';
+      f.appendChild(elx(`<span>${lbl}</span>`));
+      const i=elx(`<input class="ffi" type="number" inputmode="decimal" min="0" value="${sn[k]!=null?sn[k]:0}">`);
+      inputs[k]=i;f.appendChild(i);grid.appendChild(f);
+    });
+    pan.appendChild(grid);
+    const tog=(key,lbl)=>{
+      const t=elx(`<div class="tog pgood ${sn[key]?'on':''}" style="margin-top:8px"><div class="b"></div><span>${lbl}</span></div>`);
+      t.onclick=()=>{sn[key]=!sn[key];t.classList.toggle('on');};
+      return t;
+    };
+    pan.appendChild(tog('entreno','Entrenó (fierro)'));
+    pan.appendChild(tog('caminata','Hizo la caminata'));
+    pan.appendChild(tog('desayuno_huevos','Desayunó los huevos'));
+    const wRow=document.createElement('div');wRow.className='edf';wRow.style.marginTop='8px';
+    wRow.appendChild(elx(`<span>peso de ese día (kg, vacío = sin dato)</span>`));
+    const wIn=elx(`<input class="ffi" type="number" inputmode="decimal" step="0.1" min="70" max="150" value="${sn.peso_kg!=null?sn.peso_kg:''}">`);
+    wRow.appendChild(wIn);pan.appendChild(wRow);
+    const sv=elx(`<button class="bigbtn" style="margin-top:12px">Guardar y recalcular</button>`);
+    sv.onclick=async()=>{
+      flds.forEach(([k])=>{const v=parseFloat(inputs[k].value);sn[k]=isNaN(v)?0:v;});
+      const wv=parseFloat(wIn.value);
+      if(!isNaN(wv)&&wv>=70&&wv<=150){sn.peso_kg=Math.round(wv*10)/10;state.weights[sn.date]=sn.peso_kg;}
+      else if(wIn.value===''){sn.peso_kg=null;delete state.weights[sn.date];}
+      const r=recalcAll();
+      pastOpen=null;await save();
+      renderPast();renderDia();refreshTop();renderPeso();
+      toast('Recalculado: '+r.total+' pts · racha '+r.streak);
+    };
+    pan.appendChild(sv);
+    const del=elx(`<button class="ghost" style="color:var(--alert);border-color:var(--alert-deep)">Borrar este día del historial</button>`);
+    del.onclick=async()=>{
+      if(!confirm('¿Borrar el '+fmtDate(sn.date)+' del historial? Se recalcula todo.'))return;
+      state.log=(state.log||[]).filter(e=>e.date!==sn.date);
+      const r=recalcAll();pastOpen=null;await save();
+      renderPast();renderDia();refreshTop();
+      toast('Día borrado · '+r.total+' pts');
+    };
+    pan.appendChild(del);
+    c.appendChild(pan);
+  });
 }
 
 function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1)));const n=x/p;const s=n<=1?1:n<=2?2:n<=5?5:10;return s*p;}
@@ -1099,19 +1296,27 @@ function renderPeso(){
   const defVal=(todayW!=null)?todayW:(last!=null?last:START_W);
   // input
   const inp=document.createElement('div');inp.className='card';
-  inp.appendChild(elx(`<div class="ct">Pesada de hoy</div><div class="cd">Pesate a la mañana, en ayunas y después del baño, para comparar siempre en igualdad de condiciones. Suma +5 pts.</div>`));
+  inp.appendChild(elx(`<div class="ct">Pesada de hoy</div><div class="cd">Pesate a la mañana, en ayunas y después del baño, para comparar siempre en igualdad de condiciones.</div>`));
   const fieldWrap=document.createElement('div');fieldWrap.className='wfield';
   const field=elx(`<input class="winput" type="number" inputmode="decimal" step="0.1" min="70" max="150" placeholder="00.0" value="${defVal}">`);
   fieldWrap.appendChild(field);
   fieldWrap.appendChild(elx(`<span class="wunit">kg</span>`));
   inp.appendChild(fieldWrap);
-  const btn=elx(`<button class="bigbtn">${todayW!=null?'Actualizar peso de hoy':'Guardar peso de hoy'}</button>`);
+  // fecha: por defecto hoy, pero podés cargar una pesada atrasada
+  const dRow=document.createElement('div');dRow.className='wdate';
+  dRow.appendChild(elx(`<span class="wl">Fecha de la pesada</span>`));
+  const dIn=elx(`<input class="ffi" type="date" min="${START}" max="${todayKey()}" value="${todayKey()}">`);
+  dRow.appendChild(dIn);
+  inp.appendChild(dRow);
+  const btn=elx(`<button class="bigbtn">${todayW!=null?'Actualizar peso':'Guardar peso'}</button>`);
   btn.onclick=()=>{
     const v=parseFloat(field.value);
     if(isNaN(v)||v<70||v>150){toast('Poné un peso válido (70–150 kg)');return;}
-    state.weights[todayKey()]=Math.round(v*10)/10;
-    state.day.flags.peso=true;
-    save();renderPeso();refreshTop();toast('Peso guardado: '+state.weights[todayKey()]+' kg');
+    const iso=dIn.value||todayKey();
+    if(iso<START||iso>todayKey()){toast('Fecha fuera de la campaña');return;}
+    state.weights[iso]=Math.round(v*10)/10;
+    save();renderPeso();refreshTop();
+    toast((iso===todayKey()?'Peso guardado: ':'Peso del '+fmtDate(iso)+': ')+state.weights[iso]+' kg');
   };
   inp.appendChild(btn);
   c.appendChild(inp);
@@ -1494,9 +1699,22 @@ function switchView(v){
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
 
+// si quedaron comidas tildadas sin guardar, las guarda al cerrar (si no, el día se puntúa como si no hubieras comido)
+function autosaveMeals(){
+  let n=0;
+  MEALS.forEach(m=>{
+    const st=state.day.meals[m.id];
+    if(st.saved)return;
+    if(mealMacros(m.id).k>0){st.saved=true;n++;}
+  });
+  return n;
+}
 function finalizeDay(){
   // cierra state.day (asume que no está cerrado): puntúa, actualiza total/racha, guarda snapshot en el historial
+  const autoSaved=autosaveMeals();
+  applyLiftProgression();
   const s=scoreDay();
+  s.autoSaved=autoSaved;
   state.total=Math.max(0,state.total+s.score);
   state.streak=s.clean?state.streak+1:0;
   state.day.closed=true;
@@ -1507,7 +1725,8 @@ function finalizeDay(){
 document.getElementById('closeBtn').onclick=async()=>{
   const prev=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0]).n;
   const s=finalizeDay();
-  await save();renderDia();refreshTop();
+  await save();renderDia();refreshTop();renderMeals();renderEntreno();
+  if(s.autoSaved)toast('Guardé '+s.autoSaved+' comida(s) que habías dejado tildadas sin guardar');
   const now=(RANKS.find(r=>state.total>=r.min&&state.total<r.max)||RANKS[0]).n;
   if(now!==prev)toast('¡ASCENSO! Ahora sos '+now);
   else if(s.clean&&state.streak>1)toast('Día limpio · racha '+state.streak+' · x'+mult(state.streak).toFixed(1));
@@ -1541,11 +1760,11 @@ function exportXLSX(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), 'Resumen');
 
   // Hoja 2: Historial diario
-  const rows=[['Fecha','Día','Entreno plan','Entrenó','Deporte','Caminata','Cam. extra (min)','Cinta (min)','Peso kg','Ingerido kcal','Proteína g','Carbos g','Grasas g','Quemado kcal','Déficit kcal','Restaurante','Picoteo','Pesada','Puntos','Día limpio']];
+  const rows=[['Fecha','Día','Entreno plan','Entrenó','Deporte','Caminata','Cam. extra (min)','Cinta (min)','Peso kg','Ingerido kcal','Proteína g','Carbos g','Grasas g','Quemado kcal','Déficit kcal','Restaurante','Picoteo','Puntos','Día limpio']];
   state.log.forEach(e=>{
     rows.push([e.date,e.dia||'—',e.entreno_plan||'—',sn(e.entreno),e.deportes||'—',sn(e.caminata),e.caminata_extra_min??(e.caminata_extra!=null?e.caminata_extra*60:'—'),e.cinta_min??'—',
       e.peso_kg??'—',e.ing_kcal??'—',e.ing_prot??'—',e.ing_carb??'—',e.ing_grasa??'—',e.quemado??'—',e.deficit??'—',
-      e.rest?'Sí':'',e.snack?'Sí':'',e.peso?'Sí':'',e.score??'—',sn(e.clean)]);
+      e.rest?'Sí':'',e.snack?'Sí':'',e.score??'—',sn(e.clean)]);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Historial diario');
 
