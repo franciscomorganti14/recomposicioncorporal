@@ -198,9 +198,10 @@
   .exkg::-webkit-outer-spin-button,.exkg::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
   .exkg:focus{outline:none;border-color:var(--olive);}
   .exu{font-family:var(--mono);color:var(--muted);font-size:12px;flex:none;margin-right:2px;}
-  .exok,.exno{flex:1;min-width:82px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:8px;padding:9px 6px;font-family:var(--display);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
+  .exok,.exno,.exhold{flex:1;min-width:82px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:8px;padding:9px 6px;font-family:var(--display);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
   .exok.on{background:rgba(168,189,90,.16);border-color:var(--olive);color:var(--olive);}
   .exno.on{background:rgba(209,80,63,.12);border-color:var(--alert);color:var(--alert);}
+  .exhold.on{background:rgba(208,169,78,.16);border-color:var(--brass);color:var(--brass);}
   .exnext{font-family:var(--mono);font-size:11px;color:var(--olive);margin-top:7px;}
   .exnext.hold{color:var(--brass);}
 
@@ -410,7 +411,9 @@ const SPORTS=[
   {id:'tenis',n:'Tenis 1 h',kcal:600},
   {id:'squash',n:'Squash 1 h',kcal:700},
   {id:'pickleball',n:'Pickleball 1 h',kcal:500},
-  {id:'pingpong',n:'Ping pong 1 h',kcal:400}
+  {id:'pingpong',n:'Ping pong 1 h',kcal:400},
+  {id:'remo30',n:'Remo en máquina 30\'',kcal:300},
+  {id:'bici30',n:'Bici fija 30\'',kcal:250}
 ];
 
 // kcal y proteína por cada 100 g
@@ -491,16 +494,16 @@ const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id
 // pre-marcado por defecto = el plan fijo. Arranca todo tildado y se DESTILDA lo que no comiste.
 const DEFAULT_ITEMS={
   desayuno:{d_huevos:3,d_naranja:true,d_cafe:true},
-  almuerzo:{a_pollo:true,a_arroz:true,a_brocoli:true},
+  almuerzo:{a_pollo:true,a_batata:true,a_brocoli:true},
   merienda:{m_huevos:2,m_naranja:true},
   cena:{c_pollo:true,c_papa:true,c_brocoli:true,c_huevos:true},
   extras:{}
 };
 
 const GYM={
-  2:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra','3×8'],['Peso muerto','40 kg + barra','3×8'],['Extensión de cuádriceps','45 kg','3×8'],['Curl femoral','50 kg','3×8'],['Gemelos','45 kg + barra','3×8']]},
+  2:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra','3×8'],['Gemelos','45 kg + barra','3×8'],['Peso muerto','40 kg + barra','3×8'],['Extensión de cuádriceps','45 kg','3×8'],['Curl femoral','50 kg','3×8']]},
   3:{t:'Tren superior',ex:[['Press de banca','40 kg + barra','3×8'],['Dominadas con peso','0 kg','3×8'],['Remo en polea','50 kg','3×8'],['Press de hombros','mancuernas 12 kg','3×8'],['Flexiones','—','3×8']]},
-  5:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra','3×8'],['Peso muerto','40 kg + barra','3×8'],['Extensión de cuádriceps','35 kg','3×8'],['Curl femoral','45 kg','3×8'],['Gemelos','45 kg + barra','3×8']]},
+  5:{t:'Tren inferior',ex:[['Sentadilla','45 kg + barra','3×8'],['Gemelos','45 kg + barra','3×8'],['Peso muerto','40 kg + barra','3×8'],['Extensión de cuádriceps','35 kg','3×8'],['Curl femoral','45 kg','3×8']]},
   6:{t:'Tren superior',ex:[['Press de banca','—','3×8'],['Remo en polea','—','3×8'],['Press de hombros','—','3×8'],['Pullover','mancuerna 14 kg','3×8'],['Plancha abdominal','—','3×40s']]}
 };
 
@@ -547,7 +550,7 @@ function applyLiftProgression(){
     const e=dl[name];
     if(!e||e.kg==null)continue;
     if(e.ok===true){liftSetKg(name,Math.round((e.kg+LIFT_STEP)*10)/10);subieron.push(name);}
-    else if(e.ok===false)liftSetKg(name,e.kg);
+    else if(e.ok===false||e.ok==='hold')liftSetKg(name,e.kg);
   }
   return subieron;
 }
@@ -883,14 +886,17 @@ function renderEntreno(){
       kgIn.onchange=()=>{const v=parseFloat(kgIn.value);st.kg=isNaN(v)?null:v;if(!isNaN(v))liftSetKg(name,v);save();};
       row.appendChild(kgIn);row.appendChild(elx(`<span class="exu">kg</span>`));
       const ok=elx(`<button class="exok ${st.ok===true?'on':''}">✓ todas</button>`);
+      const hold=elx(`<button class="exhold ${st.ok==='hold'?'on':''}">= mantener</button>`);
       const no=elx(`<button class="exno ${st.ok===false?'on':''}">✗ no llegué</button>`);
       if(!state.day.closed){
         ok.onclick=()=>{st.ok=st.ok===true?null:true;save();renderEntreno();};
+        hold.onclick=()=>{st.ok=st.ok==='hold'?null:'hold';save();renderEntreno();};
         no.onclick=()=>{st.ok=st.ok===false?null:false;save();renderEntreno();};
-      }else{ok.style.opacity=.5;no.style.opacity=.5;}
-      row.appendChild(ok);row.appendChild(no);
+      }else{ok.style.opacity=.5;hold.style.opacity=.5;no.style.opacity=.5;}
+      row.appendChild(ok);row.appendChild(hold);row.appendChild(no);
       li.appendChild(row);
       if(st.ok===true&&st.kg!=null)li.appendChild(elx(`<div class="exnext">Próxima sesión: ${Math.round((st.kg+LIFT_STEP)*10)/10} kg</div>`));
+      else if(st.ok==='hold'&&st.kg!=null)li.appendChild(elx(`<div class="exnext hold">Mantenés en ${st.kg} kg (tope)</div>`));
       else if(st.ok===false&&st.kg!=null)li.appendChild(elx(`<div class="exnext hold">Próxima sesión: repetís ${st.kg} kg</div>`));
       ul.appendChild(li);
     });
@@ -1013,7 +1019,7 @@ function renderDia(){
   df.style.color=s.def<0?'var(--olive)':(s.def>0?'var(--alert)':'var(--muted)');
   document.getElementById('scBig').textContent=(s.score>=0?'+':'')+s.score;
   document.getElementById('scBig').className='big '+(s.score>=0?'pos':'neg');
-  document.getElementById('scBreak').textContent=`+${s.pos} · x${s.m.toFixed(1)}${s.clean?'':' (racha rota)'} · −${s.neg}`;
+  document.getElementById('scBreak').textContent=`+${Math.round(s.pos)} · x${s.m.toFixed(1)}${s.clean?'':' (racha rota)'} · −${Math.round(s.neg)}`;
   document.getElementById('closeBtn').style.display=state.day.closed?'none':'block';
   document.getElementById('reopenBtn').style.display=state.day.closed?'block':'none';
   const noteEl=document.getElementById('dayNote');
@@ -1582,7 +1588,7 @@ function renderAnalisis(){
   if(cw>(state.lastWeekSeen||0)){state.lastWeekSeen=cw;save();}   // marcar como visto
   if(preLaunch()){c.appendChild(elx(`<div class="card"><div class="cd">La campaña arranca el ${START}. El análisis aparece cuando cierre la primera semana.</div></div>`));return;}
   const cur=currentWeekNum();
-  const weeks=[];for(let w=cur;w>=1;w--)weeks.push(w);
+  const weeks=[cur];
   if(weeks.length===0){c.appendChild(elx(`<div class="card"><div class="cd">La primera semana cierra el ${weekEnd(1)}. Te aviso acá cuando pase.</div></div>`));return;}
   const plateau=detectPlateau();
   if(plateau){
@@ -1592,7 +1598,7 @@ function renderAnalisis(){
     c.appendChild(pcard);
   }
   const intro=document.createElement('div');intro.className='card';
-  intro.innerHTML=`<div class="ct">Resumen por semana</div><div class="cd">Cada semana (7 días desde el ${START}) tenés promedios de comida, cambio de peso y qué corregir. La semana en curso se actualiza sola.</div>`;
+  intro.innerHTML=`<div class="ct">Semana en curso</div><div class="cd">Promedios de comida, cambio de peso y qué corregir de la semana actual (7 días desde el ${START}). Se actualiza sola.</div>`;
   c.appendChild(intro);
   weeks.forEach(w=>{
     const a=analyzeWeek(w);
