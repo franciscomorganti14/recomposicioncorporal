@@ -398,7 +398,7 @@ const store={
 const START='2026-08-24', END='2026-12-31';
 const START_W=104, GOAL_W=94.5;
 const PROJ_ADJUST_DAYS=12; // primeros días de una dieta nueva: baja fuerte de agua, no representa el ritmo real — se excluyen de la proyección
-const KCAL_TARGET=2050, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
+const KCAL_TARGET=2200, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
 const WEEK_TARGET_W=[null,103.5,103,102.5,102,101.5,101,100.5,100,99.5,99,98.5,98,97.5,97,96.5,96,95.5,95,94.5];
@@ -411,13 +411,13 @@ let driveTokenClient=null, driveAccessToken=null, driveTokenExpiry=0;
 function driveEnabled(){return DRIVE_CLIENT_ID && DRIVE_CLIENT_ID.indexOf('PONÉ_')!==0;}
 
 const SPORTS=[
-  {id:'padel',n:'Pádel 1 h',kcal:600},
-  {id:'tenis',n:'Tenis 1 h',kcal:600},
-  {id:'squash',n:'Squash 1 h',kcal:700},
-  {id:'pickleball',n:'Pickleball 1 h',kcal:500},
-  {id:'pingpong',n:'Ping pong 1 h',kcal:400},
-  {id:'remo30',n:'Remo en máquina 30\'',kcal:300},
-  {id:'bici30',n:'Bici fija 30\'',kcal:250}
+  {id:'padel',n:'Pádel 1 h',kcal:600,min:60},
+  {id:'tenis',n:'Tenis 1 h',kcal:600,min:60},
+  {id:'squash',n:'Squash 1 h',kcal:700,min:60},
+  {id:'pickleball',n:'Pickleball 1 h',kcal:500,min:60},
+  {id:'pingpong',n:'Ping pong 1 h',kcal:400,min:60},
+  {id:'remo30',n:'Remo en máquina 30\'',kcal:300,min:30},
+  {id:'bici30',n:'Bici fija 30\'',kcal:250,min:30}
 ];
 
 // kcal y proteína por cada 100 g
@@ -498,9 +498,9 @@ const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id
 // pre-marcado por defecto = el plan fijo. Arranca todo tildado y se DESTILDA lo que no comiste.
 const DEFAULT_ITEMS={
   desayuno:{d_huevos:3,d_naranja:true,d_cafe:true},
-  almuerzo:{a_pollo:true,a_batata:true,a_brocoli:true},
+  almuerzo:{a_pollo:true,a_batata:true,a_brocoli:true,a_ketchup:true},
   merienda:{m_huevos:2,m_naranja:true},
-  cena:{c_pollo:true,c_papa:true,c_brocoli:true,c_huevos:true},
+  cena:{c_pollo:true,c_papa:true,c_brocoli:true,c_huevos:true,c_ketchup:true},
   extras:{}
 };
 
@@ -1042,6 +1042,24 @@ function renderCaminar(){
     tm.appendChild(clr2);
   }
   c.appendChild(tm);
+
+  // ---------- o jugá en vez de cinta: minutos de cada deporte para cubrir lo mismo que falta ----------
+  const altCard=document.createElement('div');altCard.className='card';
+  altCard.appendChild(elx(`<div class="ct">\u{1F3BE} O jugá en vez de cinta</div><div class="cd">${faltan>0?'Minutos aproximados de cada deporte para cubrir los mismos '+Math.round(faltan)+' kcal que te faltan. Tocá para registrarlo.':'Ya cerrás en déficit sin cinta ni deporte extra.'}</div>`));
+  if(faltan>0){
+    const achips=document.createElement('div');achips.className='chips';
+    SPORTS.forEach(sp=>{
+      const on=!!(state.day.deportes&&state.day.deportes[sp.id]);
+      const need=Math.ceil(faltan/(sp.kcal/sp.min));
+      const shortN=sp.n.replace(/\s*(1 h|30')$/,'');
+      const chip=elx(`<button class="chip ${on?'on':''}"><span>${shortN}</span><span class="cm">${need} min</span></button>`);
+      if(!state.day.closed)chip.onclick=()=>{state.day.deportes[sp.id]=!state.day.deportes[sp.id];save();renderCaminar();refreshTop();if(state.day.deportes[sp.id])toast(sp.n+' registrado · +'+sp.kcal+' kcal');};
+      else chip.style.opacity=.55;
+      achips.appendChild(chip);
+    });
+    altCard.appendChild(achips);
+  }
+  c.appendChild(altCard);
 }
 
 function renderDia(){
