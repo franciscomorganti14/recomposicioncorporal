@@ -396,8 +396,8 @@ const store={
 
 // ---------- config ----------
 const START='2026-08-24', END='2026-12-31';
-const START_W=104, GOAL_W=94.5;
-const PROJ_ADJUST_DAYS=12; // primeros días de una dieta nueva: baja fuerte de agua, no representa el ritmo real — se excluyen de la proyección
+const START_W=104, GOAL_W=90;
+const PROJ_ADJUST_DAYS=7; // primeros días de una dieta nueva: baja fuerte de agua, no representa el ritmo real — se excluyen de la proyección
 const KCAL_TARGET=2200, PROT_MIN=175, PROT_OPT=185, CARB_TARGET=200, FAT_TARGET=60;
 const RANKS=[{n:'Recluta',min:0,max:300},{n:'Soldado',min:300,max:700},{n:'Cabo',min:700,max:1200},{n:'Sargento',min:1200,max:1800},{n:'Teniente',min:1800,max:2600},{n:'Capitán',min:2600,max:3600},{n:'General',min:3600,max:Infinity}];
 // peso objetivo para el ÚLTIMO día de cada semana (índice = número de semana, 1-indexado)
@@ -1446,7 +1446,6 @@ function renderPeso(){
   // proyección de fecha meta (ritmo real reciente, no el teórico — descartando el ajuste inicial de agua)
   const proj=document.createElement('div');proj.className='card';
   proj.appendChild(elx(`<div class="ct">Proyección</div>`));
-  const winDays=14;
   const mesesLbl=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const niceDateFrom=iso=>{const pd=isoToDate(iso);return pd.getDate()+' '+mesesLbl[pd.getMonth()]+' '+pd.getFullYear();};
   const adjEndIso=isoAdd(START,PROJ_ADJUST_DAYS);
@@ -1458,10 +1457,9 @@ function renderPeso(){
     if(lastE.date<adjEndIso){
       proj.appendChild(elx(`<div class="cd">Estás en los primeros ${PROJ_ADJUST_DAYS} días de la campaña. Esta etapa suele traer una baja fuerte de agua que no es el ritmo real — todavía no calculo proyección para no mentirte con una fecha optimista. Vuelvo a mostrarla a partir del ${niceDateFrom(adjEndIso)}.</div>`));
     }else{
-      const winStartIso=isoAdd(lastE.date,-winDays);
-      const floorIso=winStartIso>adjEndIso?winStartIso:adjEndIso; // nunca mirar antes del corte de ajuste inicial
+      // usa TODA la data desde que pasó el ajuste inicial (no una ventana corta) — más puntos, ritmo más estable
       let windowStart=null;
-      for(const e of entries){if(e.date>=floorIso){windowStart=e;break;}}
+      for(const e of entries){if(e.date>=adjEndIso){windowStart=e;break;}}
       const wDays=windowStart?daysBetween(windowStart.date,lastE.date):0;
       if(!windowStart||wDays<=0||windowStart.date===lastE.date){
         proj.appendChild(elx(`<div class="cd">Ya pasó el período de ajuste inicial, pero todavía necesito un par de pesadas más (con días de diferencia) después del ${niceDateFrom(adjEndIso)} para calcular un ritmo confiable.</div>`));
@@ -1472,7 +1470,7 @@ function renderPeso(){
           const projectedDate=isoAdd(lastE.date,Math.round(daysToGoal));
           const onTime=projectedDate<=END;
           const niceDate=niceDateFrom(projectedDate);
-          proj.appendChild(elx(`<div class="cd">Basado en tu ritmo real de los últimos ${wDays} días (sin contar el ajuste inicial de agua de los primeros ${PROJ_ADJUST_DAYS} días).</div>`));
+          proj.appendChild(elx(`<div class="cd">Basado en tu ritmo real desde el ${niceDateFrom(windowStart.date)} hasta hoy (${wDays} días, toda la data disponible sin contar el ajuste inicial de agua de los primeros ${PROJ_ADJUST_DAYS} días).</div>`));
           proj.appendChild(elx(`<div class="wv" style="font-family:var(--display);font-weight:700;font-size:26px;color:${onTime?'var(--olive)':'var(--alert)'};margin-top:10px;text-align:center;">${niceDate}</div>`));
           if(!onTime)proj.appendChild(elx(`<div class="cd" style="color:var(--alert);margin-top:8px;">Más tarde que tu fecha límite (31/12) — a este ritmo no llegás, hay que ajustar.</div>`));
         }else{
