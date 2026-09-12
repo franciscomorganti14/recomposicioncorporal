@@ -1306,7 +1306,7 @@ function fmtDate(iso){const p=iso.split('-');return p[2]+'/'+p[1];}
 
 function buildWeightSVG(entries,startW,goalW){
   const W=340,H=210,L=30,R=12,T=12,B=26, plotW=W-L-R, plotH=H-T-B;
-  const lo=90, hi=105;
+  const lo=85, hi=105;
   const d0iso=entries[0].date, lastIso=entries[entries.length-1].date, todayIso=todayKey();
   const endIso=(isoToDate(lastIso)>isoToDate(todayIso))?lastIso:todayIso;
   const realSpan=daysBetween(d0iso,endIso), spanDays=Math.max(1,realSpan);
