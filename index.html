@@ -490,8 +490,8 @@ const MEALS=[
     {lbl:'Fruta — elegí una',items:[{id:'c_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'c_pomelo',n:'1 pomelo',k:70,p:1,c:18,f:0}]}
   ]},
   {id:'extras',nm:'Extras',time:'',groups:[
-    {lbl:'Café — tocá + / − las que tomaste',items:[{id:'x_cafe',n:'Café negro',k:2,p:0,c:0,f:0,type:'counter'},{id:'x_cafeleche200',n:'Café con leche 200ml',k:90,p:5,c:7,f:5,type:'counter'}]},
-    {lbl:'Sumás si te saliste del plan',items:[{id:'x_barrita',n:'Barrita de proteína',k:210,p:20,c:20,f:7},{id:'x_whey',n:'1 scoop whey',k:120,p:24,c:3,f:2},{id:'x_naranja',n:'1 naranja',k:62,p:1,c:15,f:0},{id:'x_pomelo',n:'1 pomelo',k:70,p:1,c:18,f:0},{id:'x_yogur',n:'Yogur proteico',k:100,p:15,c:8,f:2},{id:'x_huevo',n:'1 huevo duro',k:72,p:6,c:0,f:5},{id:'x_pollo',n:'100g pollo',k:165,p:31,c:0,f:4},{id:'x_carne',n:'200g carne',k:500,p:52,c:0,f:30},{id:'x_arroz',n:'100g arroz',k:130,p:3,c:28,f:0},{id:'x_papa',n:'100g papa',k:86,p:2,c:20,f:0},{id:'x_batata',n:'100g batata',k:90,p:2,c:21,f:0},{id:'x_ketchup',n:'100g ketchup',k:110,p:1,c:26,f:0},{id:'x_frutos',n:'Frutos secos 30g',k:180,p:6,c:6,f:15},{id:'x_pochoclos',n:'Balde grande pochoclos dulces',k:1000,p:8,c:150,f:40},{id:'x_burrito',n:'Burrito (200g, bondiola o caprese)',k:480,p:24,c:40,f:20}]}
+    {lbl:'Contá con + / −',items:[{id:'x_cafeleche200',n:'Café con leche 200ml',k:90,p:5,c:7,f:5,type:'counter'},{id:'x_vino150',n:'Vino 150ml',k:125,p:0,c:5,f:0,type:'counter'},{id:'x_panlactal',n:'Pan lactal (1 rebanada)',k:63,p:2,c:12,f:1,type:'counter'},{id:'x_huevo',n:'Huevo duro',k:72,p:6,c:0,f:5,type:'counter'}]},
+    {lbl:'Un toque',items:[{id:'x_barrita',n:'Barrita de proteína',k:210,p:20,c:20,f:7},{id:'x_whey',n:'1 scoop whey',k:120,p:24,c:3,f:2},{id:'x_burritobondiola',n:'Burrito Bondiola 200g',k:490,p:26,c:42,f:21},{id:'x_burritocaprese',n:'Burrito Caprese 200g',k:470,p:22,c:45,f:19},{id:'x_barraproteina',n:'Barra de Proteína',k:200,p:20,c:18,f:7},{id:'x_palitohelado',n:'Palito de Helado',k:124,p:2,c:14,f:7},{id:'x_helado14',n:'1/4 Helado',k:518,p:10,c:60,f:28},{id:'x_mayo25',n:'Mayonesa 25g',k:170,p:0,c:0,f:19},{id:'x_naranja',n:'Naranja',k:62,p:1,c:15,f:0},{id:'x_lataatun',n:'1 Lata de Atún',k:139,p:31,c:0,f:1},{id:'x_havanette',n:'1 Havanette',k:144,p:2,c:24,f:5},{id:'x_bigpons',n:'Big Pons Doble',k:850,p:42,c:48,f:52},{id:'x_choripan',n:'1 Choripán',k:550,p:20,c:35,f:35},{id:'x_lasagna',n:'1 Lasagna 300g',k:500,p:24,c:45,f:24},{id:'x_milanesa',n:'Milanesa de carne 200g',k:560,p:36,c:30,f:32},{id:'x_sushi',n:'Sushi 300g',k:450,p:18,c:84,f:6},{id:'x_tiramisu',n:'1 Tiramisu 200g',k:550,p:9,c:55,f:30},{id:'x_yogur',n:'Yogur proteico',k:100,p:15,c:8,f:2},{id:'x_pomelo',n:'Pomelo',k:70,p:1,c:18,f:0}]}
   ]}
 ];
 const ITEM={}; MEALS.forEach(m=>m.groups.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i)));
@@ -1093,6 +1093,7 @@ function renderDia(){
 
 // ---------- editor de días pasados ----------
 let pastOpen=null;
+let weeksHistOpen=false, monthsHistOpen=false;
 function renderPast(){
   const c=document.getElementById('pastList');if(!c)return;c.innerHTML='';
   const log=(state.log||[]).slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,21);
@@ -1647,6 +1648,44 @@ function weekTips(a){
   return t;
 }
 
+function buildCumWeekCard(w,cw){
+  const a=analyzeCumulative(w);
+  const done=w<=cw;
+  const card=document.createElement('div');card.className='card'+(done?' done':'');
+  const tag=done?'<span style="color:var(--olive)">completa</span>':'<span style="color:var(--brass)">en curso</span>';
+  card.appendChild(elx(`<div class="ct">Semanas 1–${w} · ${tag}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
+  const pr=pesoObjetivoRow(w,a.wEnd);if(pr)card.appendChild(elx(pr));
+  if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados todavía.</div>`));return card;}
+  const dcol=a.delta==null?'var(--muted)':(a.delta<=0?'var(--olive)':'var(--alert)');
+  const dtxt=a.delta==null?'—':((a.delta>0?'+':'')+a.delta.toFixed(1)+' kg');
+  card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+    <div><span class="wl">Días</span><span class="wv">${a.n}</span></div>
+    <div><span class="wl">Limpios</span><span class="wv" style="color:var(--olive)">${a.cleanDays}</span></div>
+    <div><span class="wl">Δ peso</span><span class="wv" style="color:${dcol}">${dtxt}</span></div>
+    <div><span class="wl">Puntos</span><span class="wv" style="color:${a.pts>=0?'var(--olive)':'var(--alert)'}">${a.pts>=0?'+':''}${a.pts}</span></div>
+  </div>`));
+  card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+    <div><span class="wl">kcal/día</span><span class="wv">${a.avgKcal}</span></div>
+    <div><span class="wl">Prot/día</span><span class="wv" style="color:${a.avgProt>=PROT_MIN?'var(--olive)':'var(--alert)'}">${a.avgProt}g</span></div>
+    <div><span class="wl">Carb/día</span><span class="wv">${a.avgCarb}g</span></div>
+    <div><span class="wl">Grasa/día</span><span class="wv">${a.avgFat}g</span></div>
+  </div>`));
+  card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
+    <div><span class="wl">Déficit/día</span><span class="wv" style="color:${a.avgDef<0?'var(--olive)':(a.avgDef>0?'var(--alert)':'var(--muted)')}">${a.avgDef>0?'+':''}${a.avgDef}</span></div>
+    <div><span class="wl">Entrenos</span><span class="wv">${a.trainDone}/${a.trainExp}</span></div>
+    <div><span class="wl">Caminatas</span><span class="wv">${a.walkDone}/${a.walkExp}</span></div>
+    <div><span class="wl">Déf. total</span><span class="wv">${a.totDef}</span></div>
+  </div>`));
+  return card;
+}
+function buildMonthCard(mo){
+  const{y,m,label}=mo, a=analyzeMonth(y,m);
+  const card=document.createElement('div');card.className='card';
+  card.appendChild(elx(`<div class="ct">${label}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
+  if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados en este mes.</div>`));return card;}
+  statsBlocksHTML(a).forEach(html=>card.appendChild(elx(html)));
+  return card;
+}
 function renderAnalisis(){
   const c=document.getElementById('analisis');if(!c)return;c.innerHTML='';
   const cw=completedWeeks();
@@ -1705,54 +1744,36 @@ function renderAnalisis(){
     c.appendChild(card);
   });
 
-  // ---------- Sumatoria de semanas (acumulado desde la Semana 1) ----------
+  // ---------- Sumatoria de semanas (acumulado desde la Semana 1) — un solo cuadro + historial colapsable ----------
   const sumIntro=document.createElement('div');sumIntro.className='card';
-  sumIntro.innerHTML=`<div class="ct">📈 Sumatoria de semanas</div><div class="cd">Acumulado desde la Semana 1 hasta cada semana — la tendencia general, no solo la semana suelta.</div>`;
+  sumIntro.innerHTML=`<div class="ct">📈 Sumatoria de semanas</div><div class="cd">Acumulado desde la Semana 1 hasta la semana actual — la tendencia general, no solo la semana suelta.</div>`;
   c.appendChild(sumIntro);
-  for(let w=1;w<=cur;w++){
-    const a=analyzeCumulative(w);
-    const done=w<=cw;
-    const card=document.createElement('div');card.className='card'+(done?' done':'');
-    const tag=done?'<span style="color:var(--olive)">completa</span>':'<span style="color:var(--brass)">en curso</span>';
-    card.appendChild(elx(`<div class="ct">Semanas 1–${w} · ${tag}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
-    const pr=pesoObjetivoRow(w,a.wEnd);if(pr)card.appendChild(elx(pr));
-    if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados todavía.</div>`));c.appendChild(card);continue;}
-    const dcol=a.delta==null?'var(--muted)':(a.delta<=0?'var(--olive)':'var(--alert)');
-    const dtxt=a.delta==null?'—':((a.delta>0?'+':'')+a.delta.toFixed(1)+' kg');
-    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
-      <div><span class="wl">Días</span><span class="wv">${a.n}</span></div>
-      <div><span class="wl">Limpios</span><span class="wv" style="color:var(--olive)">${a.cleanDays}</span></div>
-      <div><span class="wl">Δ peso</span><span class="wv" style="color:${dcol}">${dtxt}</span></div>
-      <div><span class="wl">Puntos</span><span class="wv" style="color:${a.pts>=0?'var(--olive)':'var(--alert)'}">${a.pts>=0?'+':''}${a.pts}</span></div>
-    </div>`));
-    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
-      <div><span class="wl">kcal/día</span><span class="wv">${a.avgKcal}</span></div>
-      <div><span class="wl">Prot/día</span><span class="wv" style="color:${a.avgProt>=PROT_MIN?'var(--olive)':'var(--alert)'}">${a.avgProt}g</span></div>
-      <div><span class="wl">Carb/día</span><span class="wv">${a.avgCarb}g</span></div>
-      <div><span class="wl">Grasa/día</span><span class="wv">${a.avgFat}g</span></div>
-    </div>`));
-    card.appendChild(elx(`<div class="wstats" style="margin-top:12px;">
-      <div><span class="wl">Déficit/día</span><span class="wv" style="color:${a.avgDef<0?'var(--olive)':(a.avgDef>0?'var(--alert)':'var(--muted)')}">${a.avgDef>0?'+':''}${a.avgDef}</span></div>
-      <div><span class="wl">Entrenos</span><span class="wv">${a.trainDone}/${a.trainExp}</span></div>
-      <div><span class="wl">Caminatas</span><span class="wv">${a.walkDone}/${a.walkExp}</span></div>
-      <div><span class="wl">Déf. total</span><span class="wv">${a.totDef}</span></div>
-    </div>`));
-    c.appendChild(card);
+  c.appendChild(buildCumWeekCard(cur,cw));
+  if(cur>1){
+    const wBtn=elx(`<button class="ghost">${weeksHistOpen?'▴ Ocultar semanas completadas':'▾ Ver semanas completadas ('+(cur-1)+')'}</button>`);
+    wBtn.onclick=()=>{weeksHistOpen=!weeksHistOpen;renderAnalisis();};
+    c.appendChild(wBtn);
+    if(weeksHistOpen){
+      for(let w=cur-1;w>=1;w--)c.appendChild(buildCumWeekCard(w,cw));
+    }
   }
 
-  // ---------- Resumen mensual ----------
+  // ---------- Resumen mensual — mes en curso + historial colapsable ----------
   const monIntro=document.createElement('div');monIntro.className='card';
   monIntro.innerHTML=`<div class="ct">🗓 Resumen mensual</div><div class="cd">Lo mismo que arriba, pero por mes calendario — para ver la tendencia gruesa.</div>`;
   c.appendChild(monIntro);
-  const months=monthsInCampaign().slice().reverse();
-  months.forEach(({y,m,label})=>{
-    const a=analyzeMonth(y,m);
-    const card=document.createElement('div');card.className='card';
-    card.appendChild(elx(`<div class="ct">${label}</div><div class="cd">${fmtDate(a.ws)} → ${fmtDate(a.we)}</div>`));
-    if(a.n===0){card.appendChild(elx(`<div class="cd" style="margin-top:8px">Sin días registrados en este mes.</div>`));c.appendChild(card);return;}
-    statsBlocksHTML(a).forEach(html=>card.appendChild(elx(html)));
-    c.appendChild(card);
-  });
+  const monthsAsc=monthsInCampaign();
+  const curMonth=monthsAsc[monthsAsc.length-1];
+  if(curMonth)c.appendChild(buildMonthCard(curMonth));
+  const pastMonths=monthsAsc.slice(0,-1).reverse();
+  if(pastMonths.length){
+    const mBtn=elx(`<button class="ghost">${monthsHistOpen?'▴ Ocultar meses completados':'▾ Ver meses completados ('+pastMonths.length+')'}</button>`);
+    mBtn.onclick=()=>{monthsHistOpen=!monthsHistOpen;renderAnalisis();};
+    c.appendChild(mBtn);
+    if(monthsHistOpen){
+      pastMonths.forEach(mo=>c.appendChild(buildMonthCard(mo)));
+    }
+  }
 }
 
 function switchView(v){
