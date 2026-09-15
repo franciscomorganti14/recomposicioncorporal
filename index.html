@@ -267,6 +267,8 @@
     <div class="pts"><div class="n" id="totalPts">0</div><div class="l">puntos</div></div>
   </div>
   <div class="top-r2">
+    <div class="mini"><div class="mn" id="miniBurn">0</div><div class="ml">quemado</div></div>
+    <div class="mini"><div class="mn" id="miniDef">0</div><div class="ml">déficit</div></div>
     <div class="mini"><div class="mn" id="miniKcal">0</div><div class="ml">kcal</div></div>
     <div class="mini"><div class="mn" id="miniProt">0</div><div class="ml">prot</div></div>
     <div class="mini"><div class="mn" id="miniCarb">0</div><div class="ml">carb</div></div>
@@ -370,6 +372,12 @@
   <div id="analisis"></div>
 </div>
 
+<!-- I + D -->
+<div class="view" id="v-idd">
+  <div class="tabtitle"><span class="ico">🧪</span><h2>I + D</h2><span class="hint" id="iddHint"></span></div>
+  <div id="idd"></div>
+</div>
+
 </div><!-- /app -->
 
 <div class="tabbar" id="tabbar">
@@ -381,6 +389,7 @@
   <button data-v="rangos"><span class="ti">🎖</span><span class="tl">Rangos</span></button>
   <button data-v="motivacion"><span class="ti">🔥</span><span class="tl">Frases</span></button>
   <button data-v="analisis"><span class="ti">📈</span><span class="tl">Análisis</span></button>
+  <button data-v="idd"><span class="ti">🧪</span><span class="tl">I+D</span></button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -511,6 +520,151 @@ const GYM={
   6:{t:'Tren superior',ex:[['Press de banca','—','3×8'],['Remo en polea','—','3×8'],['Press de hombros','—','3×8'],['Pullover','mancuerna 14 kg','3×8'],['Plancha abdominal','—','3×40s']]}
 };
 
+// ---------- I + D (búsqueda laboral / monetizar / leer / concesionarias / Claude AI) ----------
+const IDD_START='2026-09-16', IDD_END='2026-12-31';
+const IDD_TASKS=[
+  {id:'laboral',nm:'Búsqueda laboral',desc:'3 posiciones interesantes',min:60,days:[1,2,3,4,5]},
+  {id:'monetizar',nm:'Pensar en qué monetizar',desc:'',min:30,days:[1,2,3,4,5]},
+  {id:'leer',nm:'Leer',desc:'10 hojas de cualquier libro de interés',min:45,days:[1,2,3,4,5]},
+  {id:'concesionarias',nm:'Concesionarias',desc:'Visitar 2 concesionarias a ofrecer servicios del registro',min:0,days:[2,4]},
+  {id:'claude',nm:'Claude AI',desc:'',min:60,days:[1,3,5]}
+];
+function iddTasksFor(iso){const dd=isoToDate(iso).getDay();return IDD_TASKS.filter(t=>t.days.includes(dd));}
+function iddDayData(iso){if(!state.idd)state.idd={};if(!state.idd[iso])state.idd[iso]={};return state.idd[iso];}
+function iddClampToday(){const t=todayKey();return t<IDD_START?IDD_START:(t>IDD_END?IDD_END:t);}
+function iddMondayOf(iso){const dd=isoToDate(iso).getDay();const back=(dd+6)%7;return isoAdd(iso,-back);}
+function iddWeekStart(w){return isoAdd(iddMondayOf(IDD_START),(w-1)*7);}
+function iddWeekOf(iso){return Math.floor(daysBetween(iddMondayOf(IDD_START),iso)/7)+1;}
+function iddCurrentWeekNum(){return Math.max(1,iddWeekOf(iddClampToday()));}
+function iddFmtDate(iso){
+  const dias=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const d=isoToDate(iso);
+  return dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()];
+}
+// stats acumuladas desde IDD_START hasta hoy (o el fin de la campaña si ya terminó)
+function iddStats(){
+  const perTask={};IDD_TASKS.forEach(t=>perTask[t.id]={sched:0,done:0,nm:t.nm});
+  let sched=0,done=0,minSched=0,minDone=0;
+  if(todayKey()>=IDD_START){
+    const end=iddClampToday();
+    let iso=IDD_START;
+    while(iso<=end){
+      const tasks=iddTasksFor(iso);
+      const rec=(state.idd&&state.idd[iso])||{};
+      tasks.forEach(t=>{
+        perTask[t.id].sched++;sched++;minSched+=t.min||0;
+        if(rec[t.id]){perTask[t.id].done++;done++;minDone+=t.min||0;}
+      });
+      iso=isoAdd(iso,1);
+    }
+  }
+  return{perTask,sched,done,minSched,minDone,pct:sched?Math.round(done/sched*100):0};
+}
+let iddOpenEditor=null; // fecha ISO del día que se está editando desde el calendario (o null)
+function iddDayCard(iso){
+  const tasks=iddTasksFor(iso);
+  const isFuture=iso>todayKey();
+  const card=document.createElement('div');card.className='card';
+  if(!tasks.length){
+    card.appendChild(elx(`<div class="ct">${iddFmtDate(iso)}</div><div class="rest" style="padding:14px 0"><div class="re">🌿</div><div class="rt">Sin tareas de I+D</div></div>`));
+    return card;
+  }
+  const rec=iddDayData(iso);
+  const doneN=tasks.filter(t=>rec[t.id]).length;
+  const minDone=tasks.filter(t=>rec[t.id]).reduce((a,t)=>a+(t.min||0),0);
+  const minTot=tasks.reduce((a,t)=>a+(t.min||0),0);
+  card.appendChild(elx(`<div class="ct">${iddFmtDate(iso)}</div><div class="cd">${doneN}/${tasks.length} tareas · ${minDone}/${minTot} min</div>`));
+  tasks.forEach(t=>{
+    const on=!!rec[t.id];
+    const row=elx(`<div class="tog pgood ${on?'on':''}" style="${isFuture?'cursor:default;opacity:.5':''}"><div class="b"></div><span style="flex:1">${t.nm}${t.desc?(' <span style="color:var(--muted)">· '+t.desc+'</span>'):''}</span><span class="tp">${t.min?t.min+' min':''}</span></div>`);
+    if(!isFuture)row.onclick=()=>{rec[t.id]=!rec[t.id];save();renderIDD();};
+    card.appendChild(row);
+  });
+  return card;
+}
+function renderIDD(){
+  const c=document.getElementById('idd');if(!c)return;c.innerHTML='';
+  const hint=document.getElementById('iddHint');
+  const t=todayKey();
+
+  if(t<IDD_START){
+    if(hint)hint.textContent='arranca el 16/09';
+    c.appendChild(elx(`<div class="prelaunch" style="margin-top:0"><div class="pt">I + D en espera</div><div class="pd">Arranca el <b>16 de septiembre de 2026</b> y corre hasta el <b>31 de diciembre</b>.</div><div class="pc">${daysBetween(t,IDD_START)}</div><div class="pcl">días para el arranque</div></div>`));
+    return;
+  }
+  if(hint)hint.textContent=(t>IDD_END)?'campaña terminada':'hasta el 31/12';
+
+  if(t<=IDD_END){
+    c.appendChild(iddDayCard(t));
+  }else{
+    c.appendChild(elx(`<div class="card"><div class="ct">Campaña I+D finalizada</div><div class="cd">Corrió del 16/09 al 31/12/2026. Mirá el resumen abajo.</div></div>`));
+  }
+
+  const st=iddStats();
+  const sum=document.createElement('div');sum.className='card';
+  sum.appendChild(elx(`<div class="ct">Cumplimiento acumulado</div><div class="cd">Desde el 16/09 hasta ${t>IDD_END?'el 31/12':'hoy'}: ${st.done}/${st.sched} tareas · ${st.minDone}/${st.minSched} min.</div>`));
+  sum.appendChild(elx(`<div class="bar" style="height:11px;margin-top:8px"><i style="width:${st.pct}%;background:${st.pct>=80?'var(--olive)':st.pct>=50?'var(--brass)':'var(--alert)'}"></i></div>`));
+  sum.appendChild(elx(`<div class="cd" style="text-align:center;margin-top:6px;font-family:var(--mono)">${st.pct}%</div>`));
+  IDD_TASKS.forEach(tk=>{
+    const p=st.perTask[tk.id];
+    const pct=p.sched?Math.round(p.done/p.sched*100):0;
+    const row=document.createElement('div');row.className='macro-row';
+    row.innerHTML=`<div class="ml2">${tk.nm}</div><div class="mv" style="font-size:13px;color:${pct>=80?'var(--olive)':pct>=50?'var(--brass)':(p.sched?'var(--alert)':'var(--muted)')}">${p.done}/${p.sched} · ${pct}%</div>`;
+    sum.appendChild(row);
+  });
+  c.appendChild(sum);
+
+  const heat=document.createElement('div');heat.className='card';
+  heat.appendChild(elx(`<div class="ct">Calendario</div><div class="cd">Verde = todas las tareas del día · ámbar = algunas · rojo = ninguna. Tocá un día pasado para editarlo.</div>`));
+  heat.appendChild(elx(`<div class="heatdow"><span></span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>`));
+  const lastWeek=iddCurrentWeekNum();
+  for(let w=1;w<=lastWeek;w++){
+    const ws=iddWeekStart(w);
+    const row=document.createElement('div');row.className='heatrow';
+    row.appendChild(elx(`<div class="heatwk">S${w}</div>`));
+    for(let i=0;i<7;i++){
+      const iso=isoAdd(ws,i);
+      let bg='var(--line)',border='1px solid var(--line)',title=iso,clickable=false;
+      const tasks=iddTasksFor(iso);
+      if(iso<IDD_START||iso>IDD_END){title+=' · fuera de campaña';}
+      else if(!tasks.length){title+=' · sin tareas';}
+      else if(iso>t){title+=' · futuro';}
+      else{
+        const rec=(state.idd&&state.idd[iso])||{};
+        const doneN=tasks.filter(x=>rec[x.id]).length;
+        const ratio=doneN/tasks.length;
+        bg=ratio===1?'var(--olive)':(ratio>0?'var(--brass)':'var(--alert)');
+        border='1px solid '+bg;
+        if(iso===t)border='1px dashed var(--brass)';
+        title+=` · ${doneN}/${tasks.length} tareas`;
+        clickable=(iso!==t);
+      }
+      const cell=elx(`<div class="heatcell" style="background:${bg};border:${border};${clickable?'cursor:pointer':''}" title="${title}"></div>`);
+      if(clickable)cell.onclick=()=>{iddOpenEditor=(iddOpenEditor===iso)?null:iso;renderIDD();};
+      row.appendChild(cell);
+    }
+    heat.appendChild(row);
+  }
+  heat.appendChild(elx(`<div class="heatlegend">
+    <span><span class="sw" style="background:var(--olive)"></span>todas hechas</span>
+    <span><span class="sw" style="background:var(--brass)"></span>algunas</span>
+    <span><span class="sw" style="background:var(--alert)"></span>ninguna</span>
+    <span><span class="sw" style="background:var(--line)"></span>sin tareas / futuro</span>
+  </div>`));
+  c.appendChild(heat);
+
+  if(iddOpenEditor){
+    const ed=document.createElement('div');ed.className='card';ed.style.borderColor='var(--olive-deep)';
+    ed.appendChild(elx(`<div class="grp-lbl">Editando día pasado</div>`));
+    ed.appendChild(iddDayCard(iddOpenEditor));
+    const close=elx(`<button class="ghost" style="margin-top:6px">Cerrar edición</button>`);
+    close.onclick=()=>{iddOpenEditor=null;renderIDD();};
+    ed.appendChild(close);
+    c.appendChild(ed);
+  }
+}
+
 // ---------- helpers ----------
 function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function isoToDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
@@ -564,7 +718,7 @@ function freshDay(){
   const meals={}; MEALS.forEach(m=>meals[m.id]={items:Object.assign({},DEFAULT_ITEMS[m.id]||{}),saved:false,free:[]});
   return {date:todayKey(),meals,entreno:{done:false},deportes:{},caminata:{done:false,extraMin:0},cinta:{min:0},lifts:{},flags:{rest:false,snack:false},closed:false,note:''};
 }
-function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lifts:{},lastWeekSeen:0};}
+function defaults(){return{total:0,streak:0,log:[],day:freshDay(),weights:{},measurements:{cintura:{},cuello:{}},lifts:{},lastWeekSeen:0,idd:{}};}
 let state=null, view='comida';
 
 let autoClosedInfo=null;
@@ -612,6 +766,7 @@ function normalize(){
   if(!state.measurements)state.measurements={cintura:{},cuello:{}};
   if(!state.measurements.cintura)state.measurements.cintura={};
   if(!state.measurements.cuello)state.measurements.cuello={};
+  if(!state.idd)state.idd={};
 }
 
 // ---------- macros ----------
@@ -1228,39 +1383,6 @@ function renderRangos(){
     chart.appendChild(elx(`<div class="cd" style="margin-top:10px;">Todavía no hay días registrados. Cerrá un día y va a empezar a aparecer acá.</div>`));
   }
   c.appendChild(chart);
-  // heatmap de racha
-  const heat=document.createElement('div');heat.className='card';
-  heat.appendChild(elx(`<div class="ct">Racha — calendario</div><div class="cd">Cada fila es una semana (Lun→Dom). Cada cuadrito es un día: tocalo o pasá el mouse para ver la fecha.</div>`));
-  heat.appendChild(elx(`<div class="heatdow"><span></span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>`));
-  const todayIso=todayKey();
-  const lastWeek=Math.max(1,currentWeekNum()||1);
-  for(let w=1;w<=lastWeek;w++){
-    const ws=weekStart(w);
-    const row=document.createElement('div');row.className='heatrow';
-    row.appendChild(elx(`<div class="heatwk">S${w}</div>`));
-    for(let i=0;i<7;i++){
-      const iso=isoAdd(ws,i);
-      let bg='var(--line)',border='1px solid var(--line)',title=iso;
-      if(iso<START||iso>END||iso>todayIso){
-        title+=' · sin datos / futuro';
-      }else if(iso===todayIso&&!state.day.closed){
-        bg='var(--panel-2)';border='1px dashed var(--brass)';title+=' · hoy (en curso)';
-      }else{
-        const e=(state.log||[]).find(x=>x.date===iso);
-        if(e){bg=e.clean?'var(--olive)':'var(--alert)';title+=e.clean?' · día limpio':' · día con algún negativo';}
-        else title+=' · sin registrar';
-      }
-      row.appendChild(elx(`<div class="heatcell" style="background:${bg};border:${border};" title="${title}"></div>`));
-    }
-    heat.appendChild(row);
-  }
-  heat.appendChild(elx(`<div class="heatlegend">
-    <span><span class="sw" style="background:var(--olive)"></span>día limpio (ningún negativo)</span>
-    <span><span class="sw" style="background:var(--alert)"></span>día con algún negativo</span>
-    <span><span class="sw" style="background:var(--panel-2);border:1px dashed var(--brass)"></span>hoy, todavía en curso</span>
-    <span><span class="sw" style="background:var(--line)"></span>sin registrar / futuro</span>
-  </div>`));
-  c.appendChild(heat);
   // escalafón completo
   const ladder=document.createElement('div');ladder.className='card';
   ladder.appendChild(elx(`<div class="ct" style="margin-bottom:2px;">Escalafón</div>`));
@@ -1284,6 +1406,11 @@ function refreshTop(){
   document.getElementById('totalPts').textContent=state.total;
   document.getElementById('campDay').textContent=preLaunch()?'en espera':('Día '+campaignDay()+' · faltan '+Math.max(0,daysBetween(todayKey(),END))+'d p/ '+GOAL_W+'kg');
   const mac=dayMacros();
+  const burnV=burn();
+  const mb=document.getElementById('miniBurn');mb.textContent=Math.round(burnV);
+  const defV=Math.round(mac.k-burnV);
+  const md=document.getElementById('miniDef');md.textContent=(defV>0?'+':'')+defV;
+  md.className='mn '+(defV<0?'ok':(defV>0?'over':''));
   const mk=document.getElementById('miniKcal');mk.textContent=Math.round(mac.k)+'/'+KCAL_TARGET;
   mk.className='mn '+(mac.k<=KCAL_TARGET?'ok':'over');
   const mp=document.getElementById('miniProt');mp.textContent=Math.round(mac.p)+'/'+PROT_MIN;
@@ -1785,6 +1912,7 @@ function switchView(v){
   if(v==='peso')renderPeso();
   if(v==='motivacion')renderMotivacion();
   if(v==='analisis')renderAnalisis();
+  if(v==='idd')renderIDD();
   window.scrollTo(0,0);
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
