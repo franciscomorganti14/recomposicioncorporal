@@ -267,7 +267,7 @@
     <div class="pts"><div class="n" id="totalPts">0</div><div class="l">puntos</div></div>
   </div>
   <div class="top-r2">
-    <div class="mini"><div class="mn" id="miniKcal">0</div><div class="bar" style="height:4px;margin-top:5px;border:none;background:var(--line)"><i id="miniKcalBar" style="width:0%;background:var(--olive)"></i></div><div class="ml">kcal</div></div>
+    <div class="mini"><div class="mn" id="miniKcal">0</div><div class="ml">kcal</div></div>
     <div class="mini"><div class="mn" id="miniProt">0</div><div class="ml">prot</div></div>
     <div class="mini"><div class="mn" id="miniCarb">0</div><div class="ml">carb</div></div>
     <div class="mini"><div class="mn" id="miniGrasa">0</div><div class="ml">grasa</div></div>
@@ -1413,10 +1413,8 @@ function refreshTop(){
   const defV=Math.round(mac.k-burnV);
   const md=document.getElementById('miniDef');md.textContent=(defV>0?'+':'')+defV;
   md.className='mn '+(defV<0?'ok':(defV>0?'over':''));
-  const mk=document.getElementById('miniKcal');mk.textContent=Math.round(mac.k);
+  const mk=document.getElementById('miniKcal');mk.textContent=Math.round(mac.k)+'/'+KCAL_TARGET;
   mk.className='mn '+(mac.k<=KCAL_TARGET?'ok':'over');
-  const mkb=document.getElementById('miniKcalBar');
-  if(mkb){mkb.style.width=Math.min(100,Math.round(mac.k/KCAL_TARGET*100))+'%';mkb.style.background=mac.k<=KCAL_TARGET?'var(--olive)':'var(--alert)';}
   const mp=document.getElementById('miniProt');mp.textContent=Math.round(mac.p)+'/'+PROT_MIN;
   mp.className='mn '+(mac.p>=PROT_MIN?'ok':'over');
   const mc=document.getElementById('miniCarb');mc.textContent=Math.round(mac.c||0)+'/'+CARB_TARGET;
